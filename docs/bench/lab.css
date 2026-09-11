@@ -1,0 +1,38 @@
+/* ---------- 08 대화형 실험실 ---------- */
+.lab{margin:22px 0 8px}
+.lab-bar{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;margin-bottom:12px}
+.lab-grp{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+.lab-lbl{font-family:var(--f-mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+         color:var(--ink-3);margin-right:2px}
+.lab-btn{
+  font-family:var(--f-mono);font-size:11px;line-height:1;padding:5px 9px;cursor:pointer;
+  background:var(--surface);border:1px solid var(--rule);border-radius:2px;color:var(--ink-3);
+  display:inline-flex;align-items:center;gap:5px;
+}
+.lab-btn:hover{color:var(--ink-2);border-color:var(--ink-3)}
+.lab-btn:focus-visible{outline:2px solid var(--trunk);outline-offset:2px}
+.lab-btn[aria-pressed="true"]{background:var(--trunk);border-color:var(--trunk);color:#fff;font-weight:600}
+.lab-btn.m-A[aria-pressed="true"]{background:var(--c-gco);border-color:var(--c-gco)}
+.lab-btn.m-B[aria-pressed="true"]{background:var(--c-ego);border-color:var(--c-ego)}
+.lab-btn.m-C[aria-pressed="true"]{background:var(--c-ddr);border-color:var(--c-ddr)}
+.lab-btn.m-D[aria-pressed="true"]{background:var(--c-mit);border-color:var(--c-mit)}
+.lab-btn::before{content:"";width:7px;height:7px;border-radius:50%;flex:none;display:none}
+.lab-btn.m-A::before{display:block;background:var(--c-gco)}
+.lab-btn.m-B::before{display:block;background:var(--c-ego)}
+.lab-btn.m-C::before{display:block;background:var(--c-ddr)}
+.lab-btn.m-D::before{display:block;background:var(--c-mit)}
+.lab-btn[aria-pressed="true"]::before{background:#fff}
+
+.lab-stage{border:1px solid var(--rule);border-radius:3px;background:var(--surface);overflow:hidden}
+#labCv{display:block;width:100%;height:auto;touch-action:none;cursor:default}
+.lab-hint{font-family:var(--f-mono);font-size:11px;line-height:1.7;color:var(--ink-3);
+          padding:9px 13px;border-top:1px solid var(--rule-soft);background:var(--sunk)}
+.lab-hint b{color:var(--ink-2)}
+.lab-status{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);margin:10px 0 0}
+.lab-status b{color:var(--ink-2);font-weight:600}
+.lab-status.err{color:var(--no)}
+.lab-tbl td.mname{white-space:nowrap;font-weight:500}
+.lab-tbl td.mname i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;font-style:normal}
+.lab-tbl td.bad{color:var(--no);font-weight:700}
+.lab-tbl tr.off{opacity:.42}
+@media (max-width:620px){ .lab-bar{gap:8px 14px} .lab-hint{font-size:10.5px} }

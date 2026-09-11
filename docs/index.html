@@ -1,0 +1,2305 @@
+<title>Elastic Tracker 내부 구조</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+:root{
+  --paper:#F1F4F4;
+  --surface:#FBFCFC;
+  --surface-sunk:#E7ECEC;
+  --ink:#12181A;
+  --ink-2:#3E4A4C;
+  --ink-3:#6B7879;
+  --rule:#C7D2D2;
+  --rule-soft:#DCE4E4;
+  --accent:#0E6B72;
+  --accent-soft:#D3E5E6;
+  --accent-line:#8FBEC1;
+  --occupied:#A8431C;
+  --occupied-soft:#F0DCD3;
+  --free:#3F7A4E;
+  --free-soft:#DCE9DE;
+  --unknown:#7E7150;
+  --unknown-soft:#EDE7D6;
+  --shadow:0 1px 2px rgba(18,24,26,.05), 0 6px 18px -10px rgba(18,24,26,.18);
+  --f-display:"Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-mono:"IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D1213;
+    --surface:#141B1C;
+    --surface-sunk:#0A0F10;
+    --ink:#E4EBEB;
+    --ink-2:#AFBEBF;
+    --ink-3:#7C8C8D;
+    --rule:#2B3739;
+    --rule-soft:#1E2829;
+    --accent:#3FC2C9;
+    --accent-soft:#123336;
+    --accent-line:#2A6E73;
+    --occupied:#E08155;
+    --occupied-soft:#3A2116;
+    --free:#79BE87;
+    --free-soft:#1B2E1F;
+    --unknown:#C9B57E;
+    --unknown-soft:#2E2818;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D1213;
+  --surface:#141B1C;
+  --surface-sunk:#0A0F10;
+  --ink:#E4EBEB;
+  --ink-2:#AFBEBF;
+  --ink-3:#7C8C8D;
+  --rule:#2B3739;
+  --rule-soft:#1E2829;
+  --accent:#3FC2C9;
+  --accent-soft:#123336;
+  --accent-line:#2A6E73;
+  --occupied:#E08155;
+  --occupied-soft:#3A2116;
+  --free:#79BE87;
+  --free-soft:#1B2E1F;
+  --unknown:#C9B57E;
+  --unknown-soft:#2E2818;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--f-body);
+  font-size:17px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+  word-break:keep-all;
+  overflow-wrap:break-word;
+}
+a{color:var(--accent);text-underline-offset:3px;text-decoration-thickness:1px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+code,kbd{font-family:var(--f-mono);font-size:.845em}
+h1,h2,h3,h4{font-family:var(--f-display);text-wrap:balance;letter-spacing:-.012em;margin:0}
+p{margin:0}
+
+/* ---------- shell ---------- */
+.wrap{max-width:1220px;margin:0 auto;padding:0 28px}
+.masthead{border-bottom:1px solid var(--rule);background:var(--surface)}
+.masthead .wrap{padding-top:38px;padding-bottom:30px}
+.eyebrow{
+  font-family:var(--f-mono);font-size:11.5px;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--ink-3);
+}
+h1{font-size:clamp(34px,5.4vw,50px);font-weight:700;line-height:1.06;margin:12px 0 0}
+h1 .thin{font-weight:500;color:var(--ink-2)}
+.thesis{
+  font-size:19px;color:var(--ink-2);max-width:60ch;margin-top:16px;
+}
+.meta{
+  display:flex;flex-wrap:wrap;gap:8px;margin-top:22px;
+  font-family:var(--f-mono);font-size:12px;
+}
+.meta span{
+  border:1px solid var(--rule);border-radius:2px;padding:4px 9px;
+  color:var(--ink-2);background:var(--paper);
+}
+.meta span b{color:var(--ink);font-weight:600}
+
+.layout{display:grid;grid-template-columns:216px minmax(0,1fr);gap:56px;align-items:start;padding:44px 0 90px}
+@media (max-width:940px){.layout{grid-template-columns:1fr;gap:0}}
+
+/* ---------- toc ---------- */
+nav.toc{position:sticky;top:24px;font-family:var(--f-mono);font-size:12.5px}
+@media (max-width:940px){
+  nav.toc{position:static;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid var(--rule)}
+}
+nav.toc .toc-head{
+  font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-3);
+  padding-bottom:10px;border-bottom:1px solid var(--rule);margin-bottom:10px;
+}
+nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+nav.toc a{
+  display:flex;gap:10px;padding:5px 8px;border-radius:3px;
+  color:var(--ink-2);text-decoration:none;line-height:1.35;
+}
+nav.toc a:hover{background:var(--accent-soft);color:var(--accent)}
+nav.toc .n{color:var(--ink-3);font-variant-numeric:tabular-nums}
+
+main{min-width:0;max-width:74ch}
+section{padding-top:8px;margin-bottom:64px;scroll-margin-top:20px}
+h2{
+  font-size:27px;font-weight:600;margin-bottom:6px;
+  display:flex;align-items:baseline;gap:14px;
+}
+h2 .n{
+  font-family:var(--f-mono);font-size:13px;font-weight:500;color:var(--accent);
+  letter-spacing:.06em;flex:none;
+}
+.sec-note{color:var(--ink-3);font-size:14.5px;font-family:var(--f-mono);margin-bottom:24px}
+h3{font-size:18.5px;font-weight:600;margin:34px 0 10px}
+h4{font-size:14px;font-weight:600;margin:22px 0 8px;font-family:var(--f-mono);letter-spacing:.02em}
+main p{margin-bottom:14px}
+main p + p{margin-top:-2px}
+ul.plain{margin:0 0 16px;padding-left:20px}
+ul.plain li{margin-bottom:6px}
+
+.lead{font-size:18.5px;color:var(--ink-2);margin-bottom:22px}
+
+/* ---------- source ref ---------- */
+.src{
+  font-family:var(--f-mono);font-size:12px;color:var(--accent);
+  background:var(--accent-soft);border-radius:2px;padding:1.5px 5px;
+  white-space:nowrap;
+}
+
+/* ---------- pipeline ---------- */
+.pipe{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));
+  gap:1px;background:var(--rule);border:1px solid var(--rule);
+  margin:26px 0 10px;overflow:hidden;border-radius:3px;
+}
+.pipe .st{background:var(--surface);padding:13px 13px 15px;display:flex;flex-direction:column;gap:5px}
+.pipe .st .k{
+  font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--accent);
+}
+.pipe .st .t{font-family:var(--f-display);font-weight:600;font-size:14.5px;line-height:1.25}
+.pipe .st .d{font-size:13px;color:var(--ink-3);line-height:1.4}
+.pipe .st .f{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-3);margin-top:auto;padding-top:6px}
+.cap{font-family:var(--f-mono);font-size:12px;color:var(--ink-3);margin:8px 0 26px;line-height:1.5}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;margin:18px 0 24px;border:1px solid var(--rule);border-radius:3px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;font-family:var(--f-mono)}
+th,td{text-align:left;padding:8px 13px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+thead th{
+  background:var(--surface-sunk);color:var(--ink-2);font-weight:600;
+  font-size:11px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.name{color:var(--ink);font-weight:500;white-space:nowrap}
+td .u{color:var(--ink-3)}
+table .desc{font-family:var(--f-body);font-size:14.5px;line-height:1.45}
+
+/* ---------- code ---------- */
+pre{
+  margin:16px 0 20px;padding:14px 16px;background:var(--surface-sunk);
+  border:1px solid var(--rule-soft);border-left:2px solid var(--accent-line);
+  border-radius:3px;overflow-x:auto;
+  font-family:var(--f-mono);font-size:12.8px;line-height:1.62;color:var(--ink-2);
+}
+pre b{color:var(--ink);font-weight:600}
+pre .cm{color:var(--ink-3);font-style:italic}
+pre .hl{color:var(--occupied)}
+
+/* ---------- callout ---------- */
+.note{
+  border:1px solid var(--rule);border-left:2px solid var(--accent);
+  background:var(--surface);border-radius:3px;padding:14px 17px;margin:20px 0;
+  font-size:15.5px;color:var(--ink-2);
+}
+.note .lbl{
+  display:block;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:6px;
+}
+
+/* ---------- state machine ---------- */
+.states{display:flex;flex-direction:column;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin:20px 0 8px}
+.states .row{display:grid;grid-template-columns:52px 168px minmax(0,1fr);gap:0;background:var(--surface);align-items:stretch}
+.states .row .code{
+  font-family:var(--f-mono);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;
+  display:flex;align-items:center;justify-content:center;color:#fff;
+}
+.states .row .nm{font-family:var(--f-mono);font-size:12.5px;font-weight:500;padding:11px 14px;border-right:1px solid var(--rule-soft);display:flex;align-items:center}
+.states .row .ds{padding:11px 14px;font-size:14.5px;color:var(--ink-2);line-height:1.45}
+.s-ok{background:var(--free)}
+.s-idle{background:var(--ink-3)}
+.s-warn{background:var(--unknown)}
+.s-bad{background:var(--occupied)}
+@media (max-width:620px){
+  .states .row{grid-template-columns:44px minmax(0,1fr);}
+  .states .row .nm{border-right:0;padding-bottom:0}
+  .states .row .code{grid-row:span 2}
+  .states .row .ds{padding-top:4px}
+}
+
+/* ---------- findings ---------- */
+.finding{
+  border:1px solid var(--rule);border-radius:3px;background:var(--surface);
+  padding:16px 18px;margin-bottom:14px;
+}
+.finding .fh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.finding h4{margin:0;font-family:var(--f-display);font-size:16px;letter-spacing:0}
+.chip{
+  font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  padding:2.5px 7px;border-radius:2px;font-weight:600;flex:none;
+}
+.chip.c-hi{background:var(--occupied-soft);color:var(--occupied)}
+.chip.c-md{background:var(--unknown-soft);color:var(--unknown)}
+.chip.c-lo{background:var(--surface-sunk);color:var(--ink-3)}
+.finding .loc{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);margin-left:auto}
+.finding p{font-size:15px;color:var(--ink-2);margin-bottom:0}
+.finding p + p{margin-top:10px}
+
+/* ---------- figure ---------- */
+figure{margin:26px 0 8px}
+figure .fw{
+  border:1px solid var(--rule);border-radius:3px;background:var(--surface);
+  padding:10px;overflow-x:auto;
+}
+figure svg{display:block;width:100%;height:auto;min-width:460px}
+figcaption{font-family:var(--f-mono);font-size:12px;color:var(--ink-3);margin-top:10px;line-height:1.55}
+
+/* ---------- topic graph ---------- */
+.graph{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--surface-sunk);padding:16px;margin:20px 0 8px}
+.graph pre{margin:0;background:none;border:0;padding:0;font-size:12px;line-height:1.5;color:var(--ink-2);min-width:520px}
+.graph pre b{color:var(--accent);font-weight:600}
+
+/* ---------- kv ---------- */
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin:20px 0}
+.kv div{background:var(--surface);padding:12px 14px}
+.kv .k{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
+.kv .v{font-family:var(--f-display);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15}
+.kv .v small{font-size:12px;font-weight:500;color:var(--ink-3);font-family:var(--f-mono)}
+
+footer{border-top:1px solid var(--rule);background:var(--surface)}
+footer .wrap{padding:26px 28px 40px;font-family:var(--f-mono);font-size:12.5px;color:var(--ink-3);line-height:1.7}
+footer a{color:var(--accent)}
+
+/* ---------- 읽기 진행 바 · 현재 위치 · 맨 위로 ---------- */
+.progress{position:fixed;top:0;left:0;right:0;height:2px;background:transparent;z-index:60;pointer-events:none}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .08s linear}
+nav.toc a.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+nav.toc a.on .n{color:var(--accent)}
+.totop{
+  position:fixed;right:22px;bottom:22px;width:40px;height:40px;border-radius:50%;
+  background:var(--surface);border:1px solid var(--rule);color:var(--ink-2);
+  font-size:17px;line-height:1;cursor:pointer;z-index:50;box-shadow:var(--shadow);
+  opacity:0;visibility:hidden;transition:opacity .18s,visibility .18s;
+}
+.totop.show{opacity:1;visibility:visible}
+.totop:hover{color:var(--ink);border-color:var(--ink-3)}
+.totop:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:940px){ .totop{right:14px;bottom:14px} }
+
+/* ---------- 목차 접기 ---------- */
+nav.toc .toc-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sidebtn{
+  appearance:none;background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+  color:var(--ink-3);font-family:var(--f-mono);font-size:11px;line-height:1;
+  padding:5px 8px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+  letter-spacing:0;text-transform:none;
+  transition:color .14s,border-color .14s,background .14s;
+}
+.sidebtn:hover{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+.sidebtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sidebtn .ic{font-size:12px;line-height:1}
+.sidebtn[hidden]{display:none}
+.side-show{position:fixed;left:20px;bottom:22px;z-index:50;padding:8px 11px;font-size:11.5px;
+           box-shadow:var(--shadow)}
+body.side-off .layout{grid-template-columns:minmax(0,1fr);gap:0}
+body.side-off nav.toc{display:none}
+body.side-off main{max-width:82ch;margin:0 auto}
+@media (max-width:940px){
+  .side-show{display:none!important}
+  nav.toc .toc-head .sidebtn{display:none}
+  body.side-off .layout{grid-template-columns:1fr}
+  body.side-off nav.toc{display:block}
+  body.side-off main{max-width:74ch}
+}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- math (native MathML — no library, no external CSS) ---------- */
+math{font-size:1.03em;color:var(--ink)}
+.eq{
+  display:block;overflow-x:auto;overflow-y:hidden;
+  background:var(--surface);border:1px solid var(--rule-soft);
+  border-left:2px solid var(--accent-line);border-radius:3px;
+  padding:15px 18px;margin:18px 0 8px;
+}
+.eq math{display:block;margin:0 auto;min-width:0}
+.eq-note{
+  font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);
+  margin:-2px 0 20px;padding-left:2px;line-height:1.55;
+}
+.eq-note b{color:var(--ink-2);font-weight:600}
+math .op{color:var(--accent)}
+math .hot{color:var(--occupied)}
+
+/* ---------- interactive widget chrome ---------- */
+.widget{
+  border:1px solid var(--rule);border-radius:3px;background:var(--surface);
+  margin:26px 0 8px;overflow:hidden;
+}
+.widget-hd{
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:11px 15px;border-bottom:1px solid var(--rule-soft);background:var(--surface-sunk);
+}
+.widget-hd .t{font-family:var(--f-display);font-weight:600;font-size:14px}
+.widget-hd .h{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);margin-left:auto}
+.widget-body{padding:14px 15px 16px}
+.widget-body svg{display:block;width:100%;height:auto;touch-action:none}
+.stage{overflow-x:auto}
+.stage svg{min-width:420px}
+
+.ctl{display:flex;flex-direction:column;gap:11px;margin-top:14px}
+.ctl-row{display:grid;grid-template-columns:112px minmax(90px,1fr) 74px;gap:12px;align-items:center}
+.ctl-row label{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2)}
+.ctl-row output{
+  font-family:var(--f-mono);font-size:12.5px;color:var(--ink);
+  font-variant-numeric:tabular-nums;text-align:right;
+}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:18px;
+  background:transparent;cursor:pointer;margin:0;
+}
+input[type=range]::-webkit-slider-runnable-track{height:3px;background:var(--rule);border-radius:2px}
+input[type=range]::-moz-range-track{height:3px;background:var(--rule);border-radius:2px}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;
+  background:var(--accent);margin-top:-5.5px;border:2px solid var(--surface);
+}
+input[type=range]::-moz-range-thumb{
+  width:14px;height:14px;border-radius:50%;background:var(--accent);
+  border:2px solid var(--surface);
+}
+input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+
+.readout{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
+  gap:1px;background:var(--rule-soft);border:1px solid var(--rule-soft);
+  border-radius:3px;margin-top:14px;overflow:hidden;
+}
+.readout div{background:var(--surface);padding:9px 12px 10px}
+.readout .k{
+  font-family:var(--f-mono);font-size:9.5px;letter-spacing:.06em;
+  color:var(--ink-3);margin-bottom:3px;line-height:1.35;
+}
+.readout .v{
+  font-family:var(--f-mono);font-size:15px;font-weight:500;
+  font-variant-numeric:tabular-nums;line-height:1.2;
+}
+.readout .v.ok{color:var(--free)}
+.readout .v.bad{color:var(--occupied)}
+
+.hint{
+  font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);
+  margin-top:11px;line-height:1.5;
+}
+.hint kbd{
+  font-family:var(--f-mono);border:1px solid var(--rule);border-radius:2px;
+  padding:1px 5px;font-size:10.5px;background:var(--surface-sunk);color:var(--ink-2);
+}
+
+/* ---------- chart ---------- */
+:root{--chart-1:#00929B;--chart-2:#B4491A}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--chart-1:#28A2AA;--chart-2:#C96A3C}
+}
+:root[data-theme="dark"]{--chart-1:#28A2AA;--chart-2:#C96A3C}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 10px;font-family:var(--f-mono);font-size:11.5px}
+.legend span{display:inline-flex;align-items:center;gap:7px;color:var(--ink-2)}
+figure .fw.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px}
+figure .fw.charts svg{min-width:0}
+.legend i{width:16px;height:2.5px;border-radius:2px;display:block;flex:none}
+</style>
+
+<div class="progress" id="prog" aria-hidden="true"><i id="progbar"></i></div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">ZJU FAST Lab · IEEE ICRA 2022 · 코드 레벨 분석</div>
+    <h1>Elastic Tracker<br><span class="thin">내부 구조</span></h1>
+    <p class="thesis">
+      카메라를 단 쿼드로터가 장애물 사이에서 움직이는 목표물을 놓치지 않도록,
+      궤적의 <em>형상</em>과 <em>시간 배분</em>을 한 번의 L-BFGS로 함께 푸는 20 Hz 리플래너.
+      이 페이지는 저장소에 실제로 있는 코드만을 근거로 그 구조를 되짚습니다.
+    </p>
+    <div class="meta">
+      <span><b>ROS1</b> catkin · nodelet</span>
+      <span><b>16</b> 패키지</span>
+      <span><b>21,703</b> LOC (C/C++)</span>
+      <span><b>20 Hz</b> 리플랜</span>
+      <span><b>GPL-3.0</b></span>
+      <span>arXiv <b>2109.07111</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap layout">
+
+  <nav class="toc" id="toc-nav" aria-label="목차">
+    <div class="toc-head"><span>목차</span>
+      <button type="button" class="sidebtn" id="sideHide" aria-controls="toc-nav" aria-expanded="true">
+        <span class="ic" aria-hidden="true">&#9666;</span>숨기기</button>
+    </div>
+    <ol>
+      <li><a href="#thesis"><span class="n">01</span><span>핵심 아이디어</span></a></li>
+      <li><a href="#arch"><span class="n">02</span><span>노드와 토픽</span></a></li>
+      <li><a href="#pipeline"><span class="n">03</span><span>리플랜 파이프라인</span></a></li>
+      <li><a href="#predict"><span class="n">04</span><span>목표물 예측</span></a></li>
+      <li><a href="#path"><span class="n">05</span><span>가시 경로 탐색</span></a></li>
+      <li><a href="#visible"><span class="n">06</span><span>가시 영역</span></a></li>
+      <li><a href="#sfc"><span class="n">07</span><span>안전 회랑</span></a></li>
+      <li><a href="#opt"><span class="n">08</span><span>시공간 최적화</span></a></li>
+      <li><a href="#map"><span class="n">09</span><span>점유 격자</span></a></li>
+      <li><a href="#state"><span class="n">10</span><span>리플랜 상태</span></a></li>
+      <li><a href="#params"><span class="n">11</span><span>파라미터</span></a></li>
+      <li><a href="#findings"><span class="n">12</span><span>코드 이슈</span></a></li>
+      <li><a href="#run"><span class="n">13</span><span>빌드와 실행</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ============ 01 ============ -->
+    <section id="thesis">
+      <h2><span class="n">01</span>핵심 아이디어</h2>
+      <p class="sec-note">무엇이 새로운가 — 세 가지 보장</p>
+
+      <p class="lead">
+        일반적인 궤적 플래너는 구간 시간 <code>T = (T₁ … T_N)</code>을 미리 고정하고 형상만 최적화합니다.
+        목표물이 갑자기 가속하거나 멈추면 그 고정된 시간 배분이 곧바로 부적합해집니다.
+      </p>
+
+      <p>
+        Elastic Tracker는 <b>전체 소요 시간을 결정변수 자체로</b> 둡니다. 목적함수 안에서 총 시간이 이렇게 만들어집니다.
+      </p>
+
+<pre><span class="cm">// traj_opt.cc:177-180 — 마지막 결정변수 하나가 시간 여유분</span>
+double deltaT = x[obj.dim_t_ + obj.dim_p_];
+double <b>sumT   = obj.sum_T_ + deltaT * deltaT</b>;   <span class="cm">// sum_T_ = tracking_dur = 3.0 s</span>
+forwardT(t, sumT, T);                          <span class="cm">// sumT를 N개 구간으로 분배</span></pre>
+
+      <div class="eq">
+        <math display="block"><mrow>
+          <msub><mi>T</mi><mi>Σ</mi></msub><mo>=</mo>
+          <msub><mi>T</mi><mi>s</mi></msub><mo>+</mo>
+          <msup><mi mathvariant="normal">δ</mi><mn>2</mn></msup>
+          <mspace width="2.4em"/>
+          <mo>⟹</mo>
+          <mspace width="0.8em"/>
+          <msub><mi>T</mi><mi>Σ</mi></msub><mo>≥</mo>
+          <msub><mi>T</mi><mi>s</mi></msub>
+          <mspace width="0.6em"/>
+          <mtext>(∀ δ ∈ ℝ)</mtext>
+        </mrow></math>
+      </div>
+      <p class="eq-note">
+        <b>T<sub>s</sub></b> = <code>tracking_dur</code> = 3.0 s (하한) · <b>δ</b> = <code>deltaT</code>, 무제약 실수 ·
+        비용에 <b>ρ<sub>T</sub>δ²</b>가 더해져 시간 연장에 값을 매깁니다
+      </p>
+
+      <p>
+        <code>deltaT</code>를 <em>제곱해서</em> 더하므로 총 시간은 3초 아래로 절대 내려가지 않으면서
+        위로는 자유롭게 늘어납니다. 목표물이 빨라지면 궤적이 늘어나고, 느려지면 줄어듭니다 —
+        이것이 "탄성(elastic)"이라는 이름의 근거이고, 아래 세 가지 보장 중 하나입니다.
+      </p>
+
+      <p>
+        그런데 <code>forwardT</code>는 이 <code>T<sub>Σ</sub></code>를 <b>N개 구간에 나눠야</b> 하고,
+        각 구간은 양수여야 하며, 합은 정확히 <code>T<sub>Σ</sub></code>여야 합니다.
+        제약 세 개를 무제약 변수 <code>M = N−1</code>개로 푸는 사상이 이것입니다.
+      </p>
+
+      <div class="eq">
+        <math display="block">
+          <mrow>
+            <msub><mi>T</mi><mi>i</mi></msub><mo>=</mo>
+            <msub><mi>T</mi><mi>Σ</mi></msub>
+            <mfrac>
+              <msub><mi>e</mi><mi>i</mi></msub>
+              <mrow><mn>1</mn><mo>+</mo><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mi>M</mi></munderover><msub><mi>e</mi><mi>j</mi></msub></mrow>
+            </mfrac>
+            <mspace width="0.7em"/><mo stretchy="false">(</mo><mi>i</mi><mo>≤</mo><mi>M</mi><mo stretchy="false">)</mo>
+            <mo>,</mo><mspace width="1.6em"/>
+            <msub><mi>T</mi><mi>N</mi></msub><mo>=</mo>
+            <mfrac>
+              <msub><mi>T</mi><mi>Σ</mi></msub>
+              <mrow><mn>1</mn><mo>+</mo><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mi>M</mi></munderover><msub><mi>e</mi><mi>j</mi></msub></mrow>
+            </mfrac>
+          </mrow>
+        </math>
+        <math display="block">
+          <mrow>
+            <msub><mi>e</mi><mi>i</mi></msub><mo>=</mo>
+            <mtext>expC2</mtext><mo stretchy="false">(</mo><msub><mi>t</mi><mi>i</mi></msub><mo stretchy="false">)</mo>
+            <mo>=</mo>
+            <mrow>
+              <mo>{</mo>
+              <mtable columnalign="left left">
+                <mtr>
+                  <mtd><mrow><mfrac><mn>1</mn><mn>2</mn></mfrac><msubsup><mi>t</mi><mi>i</mi><mn>2</mn></msubsup><mo>+</mo><msub><mi>t</mi><mi>i</mi></msub><mo>+</mo><mn>1</mn></mrow></mtd>
+                  <mtd><mrow><msub><mi>t</mi><mi>i</mi></msub><mo>&gt;</mo><mn>0</mn></mrow></mtd>
+                </mtr>
+                <mtr>
+                  <mtd><mrow><msup><mrow><mo>(</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><msubsup><mi>t</mi><mi>i</mi><mn>2</mn></msubsup><mo>−</mo><msub><mi>t</mi><mi>i</mi></msub><mo>+</mo><mn>1</mn><mo>)</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup></mrow></mtd>
+                  <mtd><mrow><msub><mi>t</mi><mi>i</mi></msub><mo>≤</mo><mn>0</mn></mrow></mtd>
+                </mtr>
+              </mtable>
+            </mrow>
+          </mrow>
+        </math>
+      </div>
+      <p class="eq-note">
+        <b>expC2</b>는 항상 양수이고 <b>C² 연속</b>입니다 — <code>exp</code>보다 싸고 오버플로가 없습니다.
+        분모의 <code>1 +</code> 덕분에 <b>Σ T<sub>i</sub> = T<sub>Σ</sub></b>가 항등적으로 성립합니다.
+      </p>
+
+      <div class="widget" id="w-time">
+        <div class="widget-hd">
+          <span class="t">시간 파라미터화 직접 해보기</span>
+          <span class="h">traj_opt.cc:12–30 · N = 4</span>
+        </div>
+        <div class="widget-body">
+          <div class="stage">
+            <svg id="tt-svg" viewBox="0 0 620 132" role="img" aria-label="무제약 변수 세 개와 델타가 네 개의 양수 구간 시간으로 사상되는 것을 보여주는 막대 그래프. 막대 전체 길이는 항상 총 시간과 같습니다.">
+              <g id="tt-bars"></g>
+            </svg>
+          </div>
+          <div class="ctl">
+            <div class="ctl-row">
+              <label for="tt-d">δ (deltaT)</label>
+              <input type="range" id="tt-d" min="-1.6" max="1.6" step="0.01" value="0.55">
+              <output id="tt-do">0.55</output>
+            </div>
+            <div class="ctl-row">
+              <label for="tt-t0">t₁</label>
+              <input type="range" id="tt-t0" min="-3" max="3" step="0.01" value="0.4">
+              <output id="tt-t0o">0.40</output>
+            </div>
+            <div class="ctl-row">
+              <label for="tt-t1">t₂</label>
+              <input type="range" id="tt-t1" min="-3" max="3" step="0.01" value="0">
+              <output id="tt-t1o">0.00</output>
+            </div>
+            <div class="ctl-row">
+              <label for="tt-t2">t₃</label>
+              <input type="range" id="tt-t2" min="-3" max="3" step="0.01" value="-0.8">
+              <output id="tt-t2o">−0.80</output>
+            </div>
+          </div>
+          <div class="readout">
+            <div><div class="k">T<sub>Σ</sub></div><div class="v" id="tt-sum">3.30 s</div></div>
+            <div><div class="k">Σ T<sub>i</sub> (검증)</div><div class="v ok" id="tt-chk">3.30 s</div></div>
+            <div><div class="k">min T<sub>i</sub></div><div class="v ok" id="tt-min">0.39 s</div></div>
+            <div><div class="k">시간 벌점</div><div class="v" id="tt-pen">30.3</div></div>
+          </div>
+          <p class="hint">
+            슬라이더를 아무리 극단으로 밀어도 <b>모든 구간이 양수</b>이고 <b>합은 T<sub>Σ</sub>와 정확히 일치</b>합니다.
+            제약 조건을 코드로 검사하는 곳이 한 군데도 없는데 구조적으로 보장됩니다 — 이것이 L-BFGS 하나로 풀 수 있는 이유입니다.
+          </p>
+        </div>
+      </div>
+
+      <div class="pipe">
+        <div class="st">
+          <div class="k">보장 1</div>
+          <div class="t">안전</div>
+          <div class="d">궤적이 볼록 다면체 열(Safe Flight Corridor) 안에만 머뭅니다. 위배량의 3차 페널티.</div>
+          <div class="f">env.hpp:279 · traj_opt.cc:560</div>
+        </div>
+        <div class="st">
+          <div class="k">보장 2</div>
+          <div class="t">가시성</div>
+          <div class="d">목표물마다 "보이는 각도"를 부채꼴로 계산하고, 드론이 그 안에 있도록 코사인 제약을 겁니다.</div>
+          <div class="f">env.hpp:646 · traj_opt.cc:700</div>
+        </div>
+        <div class="st">
+          <div class="k">보장 3</div>
+          <div class="t">탄성</div>
+          <div class="d">웨이포인트와 구간 시간, 그리고 총 시간 신축량을 하나의 무제약 문제로 함께 풉니다.</div>
+          <div class="f">traj_opt.cc:167 · minco.hpp:161</div>
+        </div>
+      </div>
+      <p class="cap">세 가지가 개별 모듈이 아니라 <b>하나의 목적함수 안에서 동시에</b> 만족된다는 점이 이 논문의 요지입니다.</p>
+
+      <h3>왜 무제약으로 풀 수 있는가</h3>
+      <p>
+        MINCO 표현을 쓰면 5차 다항식 <code>N</code>조각 궤적이 <b>중간 웨이포인트 <code>P</code>와 구간 시간 <code>T</code>만으로</b>
+        유일하게 결정됩니다. 다항식 계수는 대역폭 6의 밴디드 선형 시스템을 O(N)에 풀어 얻습니다.
+        여기에 두 개의 변수 변환을 얹으면 부등식 제약이 전부 사라집니다.
+      </p>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>결정변수</th><th class="num">차원</th><th>변환</th><th>보장되는 것</th></tr></thead>
+          <tbody>
+            <tr><td class="name">t</td><td class="num">N − 1</td><td>expC2 + 합 정규화</td><td class="desc">모든 <code>T_i &gt; 0</code>, 그리고 <code>ΣT_i = sumT</code></td></tr>
+            <tr><td class="name">p</td><td class="num">Σ(V<sub>i</sub> − 1)</td><td>역 스테레오 사영</td><td class="desc">웨이포인트가 항상 해당 다면체 <em>안쪽</em></td></tr>
+            <tr><td class="name">deltaT</td><td class="num">1</td><td>제곱</td><td class="desc">총 시간이 <code>tracking_dur</code> 이상</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        제약 처리 루틴이 필요 없으니 L-BFGS 하나로 끝납니다. 이것이 전 파이프라인을 20 Hz로
+        다시 도는 것을 가능하게 하는 실질적 이유입니다.
+      </p>
+    </section>
+
+    <!-- ============ 02 ============ -->
+    <section id="arch">
+      <h2><span class="n">02</span>노드와 토픽</h2>
+      <p class="sec-note">simulation1.launch 기준 · drone0 네임스페이스</p>
+
+      <p>
+        노드렛 3개(<code>so3_quadrotor</code>, <code>so3_controller</code>, <code>mapping</code>, <code>planning</code>)가
+        같은 nodelet manager에 로드되어 <b>제로카피로 통신</b>합니다. 20 Hz로 오가는 점유 격자 메시지가
+        512 KB에 달하기 때문에 이 구조가 필수입니다.
+      </p>
+
+      <div class="graph">
+<pre>  mockamap ──<b>/global_map</b>─┬────────────────────────────────┐
+                            │                                │
+                            ▼                                ▼
+                  pcl_render_node                    target/mapping
+                  (CUDA 레이캐스팅)                   (use_global_map)
+                            │
+                     <b>~depth</b> (Image, 30 Hz)
+                            ▼
+   <b>odom</b> (400 Hz) ───────► mapping ──<b>gridmap_inflate</b> (OccMap3d, 20 Hz)──┐
+                                                                       │
+   /target/odom ──► target_ekf ──<b>/target_ekf_odom</b> (20 Hz)────────────┤
+                        ▲                                              │
+   <b>odom</b> ────────────────┘                                              ▼
+                                                                   planning
+                                              예측 → A* → 가시영역 → 회랑 → MINCO
+                                                        │            │
+                                        <b>trajectory</b> (PolyTraj)   <b>heartbeat</b> (Empty)
+                                                        ▼            ▼
+                                                   traj_server ◄─────┘
+                                                        │  100 Hz
+                                              <b>position_cmd</b> (PositionCommand)
+                                                        ▼
+                                                  so3_controller
+                                                        │
+                                                  <b>so3cmd</b> (SO3Command)
+                                                        ▼
+                                                  so3_quadrotor ──► <b>odom</b>, <b>imu</b> ┐
+                                                        ▲                        │
+                                                        └────────────────────────┘</pre>
+      </div>
+      <p class="cap">
+        목표물 드론은 같은 스택을 <code>fake=true</code>로 돌립니다 — 가시성·추적 항 없이 순수 A*+SFC 내비게이션.
+        RViz의 <b>2D Nav Goal</b>로 조종합니다.
+      </p>
+
+      <h3>하트비트 안전장치</h3>
+      <p>
+        플래너는 매 사이클 <code>heartbeat</code>를 무조건 발행합니다. 계획이 실패해도, 호버 중이어도 발행합니다.
+        <code>traj_server</code>가 0.5초 이상 못 받으면 마지막 위치를 유지하는 정지 명령만 내보냅니다.
+      </p>
+<pre><span class="cm">// traj_server.cpp:118-123</span>
+if ((time_now - heartbeat_time_).toSec() &gt; 0.5) {
+  ROS_ERROR_ONCE("[traj_server] Lost heartbeat from the planner, is he dead?");
+  publish_cmd(trajMsg_.traj_id, <b>last_p_</b>, Zero, Zero, 0, 0);
+  return;
+}</pre>
+
+      <h3>스레딩</h3>
+      <ul class="plain">
+        <li>세 노드렛 모두 <code>getMTPrivateNodeHandle()</code>을 쓰고 <code>init()</code>을 별도 스레드에서 돌립니다.</li>
+        <li>공유 상태(odom / target / gridmap)는 <code>std::atomic_flag</code>의 test-and-set 스핀락으로 보호합니다. 대기 중 양보(yield)는 없습니다.</li>
+        <li><code>mapping</code>의 깊이 콜백은 락 획득에 실패하면 <b>프레임을 통째로 버립니다</b> <span class="src">mapping_nodelet.cpp:79</span>. 처리가 밀릴 때 지연 누적 대신 드롭을 택한 설계입니다.</li>
+      </ul>
+    </section>
+
+    <!-- ============ 03 ============ -->
+    <section id="pipeline">
+      <h2><span class="n">03</span>리플랜 파이프라인</h2>
+      <p class="sec-note">plan_timer_callback 한 번의 호출 · 50 ms 예산</p>
+
+      <p>
+        <span class="src">planning_nodelet.cpp:149</span> 한 곳이 아래 일곱 단계를 매번 처음부터 실행합니다.
+        증분 갱신이나 웜스타트는 없습니다 — 이전 궤적에서 초기 상태만 이어받습니다.
+      </p>
+
+      <div class="pipe">
+        <div class="st"><div class="k">단계 0</div><div class="t">가드 · 호버 판정</div><div class="d">수신 확인 4종, 그리고 거리·속도·yaw 4조건이 모두 참이면 호버로 빠집니다.</div><div class="f">:149–231</div></div>
+        <div class="st"><div class="k">단계 1</div><div class="t">맵 스냅샷</div><div class="d">스핀락으로 최신 OccMap3d를 복사하고 예측기에도 같은 맵을 넘깁니다.</div><div class="f">:233–237</div></div>
+        <div class="st"><div class="k">단계 2</div><div class="t">목표물 예측</div><div class="d">등가속도 격자 탐색으로 3초 뒤까지. 결과는 0.2초 간격 16개 점.</div><div class="f">:252</div></div>
+        <div class="st"><div class="k">단계 3</div><div class="t">가시 경로 A*</div><div class="d">예측 점마다 "떨어져 있고 보이는 곳"까지 A*를 체인으로 16회.</div><div class="f">:303</div></div>
+        <div class="st"><div class="k">단계 4</div><div class="t">가시 영역</div><div class="d">각 목표물 위치에 부채꼴 (visible_p, θ)를 계산하고 시드를 안쪽으로 밉니다.</div><div class="f">:323</div></div>
+        <div class="st"><div class="k">단계 5</div><div class="t">안전 회랑</div><div class="d">경로를 가시선 단위로 분할해 볼록 다면체 열을 생성. bbox 2.0 m.</div><div class="f">:347</div></div>
+        <div class="st"><div class="k">단계 6</div><div class="t">MINCO 최적화</div><div class="d">L-BFGS. 회랑 하나당 궤적 조각 2개 → N = 2 × hPolys.size().</div><div class="f">:362–366</div></div>
+        <div class="st"><div class="k">단계 7</div><div class="t">충돌 검사</div><div class="d">앞으로 1초를 0.01초 간격 100회 샘플링해 점유 격자와 대조.</div><div class="f">:385 → :731</div></div>
+      </div>
+      <p class="cap">
+        각 단계는 실패할 수 있고, 실패는 전부 <code>generate_new_traj_success = false</code>로 모여
+        단계 7 뒤의 상태 전이(§10)로 흘러갑니다.
+      </p>
+
+      <div class="note">
+        <span class="lbl">성능 계측</span>
+        경로탐색 / 회랑생성 / 최적화의 평균 소요 시간을 재는 코드가 이미 있지만 전부 주석 처리되어 있습니다
+        (<code>t_path_</code>, <code>t_corridor_</code>, <code>t_optimization_</code>).
+        튜닝을 시작한다면 이 주석을 푸는 것이 첫걸음입니다.
+      </div>
+    </section>
+
+    <!-- ============ 04 ============ -->
+    <section id="predict">
+      <h2><span class="n">04</span>목표물 예측</h2>
+      <p class="sec-note">prediction.hpp:56 · 등가속도 격자 탐색</p>
+
+      <p>
+        EKF가 주는 것은 현재 위치와 속도뿐입니다. 3초 뒤까지의 궤적을 얻기 위해
+        "장애물에 부딪히지 않으면서 가속을 가장 적게 쓰는" 경로를 탐색합니다. 단순 등속 외삽이 아닙니다.
+      </p>
+
+<pre><span class="cm">// prediction.hpp:81-90 — 수평 가속 9가지 분기</span>
+for (input.x() = -3; input.x() &lt;= 3; input.x() += 3)      <span class="cm">// {-3, 0, 3} m/s²</span>
+  for (input.y() = -3; input.y() &lt;= 3; input.y() += 3) {
+    p = curPtr-&gt;p + curPtr-&gt;v * dt + input * dt²/2;
+    v = curPtr-&gt;v + input * dt;
+    if (!isValid(p, v)) continue;    <span class="cm">// |v| &lt; vmax && !isOccupied(p)</span></pre>
+
+      <p>
+        z축 가속은 항상 0이므로 예측은 <b>수평면 운동만</b> 모델링합니다. 차량 추적에는 적절한 가정이고,
+        공중 목표물을 3D로 추적하려면 여기부터 손대야 합니다.
+      </p>
+
+      <h4>비용</h4>
+      <p>
+        <code>g(n) = Σ ρ_a·|a_i|</code> (누적 가속), <code>h(n) = 0.001·|p_n − p_end|</code>.
+        휴리스틱 가중치가 0.001로 극단적으로 작아 사실상 <b>다익스트라에 가까운 최소 가속 탐색</b>입니다 —
+        정책으로 읽으면 "가능하면 등속으로, 벽을 만나면 최소한만 꺾는다"가 됩니다.
+      </p>
+
+      <h4>종료</h4>
+      <p>
+        <code>while (curPtr-&gt;t &lt; pre_dur)</code> — 목표 지점 도달이 아니라 <b>시간 지평 도달</b>이 종료 조건입니다.
+        즉 항상 3초짜리 예측이 나오고, 점 개수는 <code>3.0 / 0.2 + 1 = 16</code>개로 고정입니다.
+        예산은 노드 <code>2²² = 4,194,304</code>개와 벽시계 100 ms이며, 둘 중 하나를 넘기면 실패를 반환하고
+        플래너는 그 사이클을 포기합니다.
+      </p>
+
+      <div class="note">
+        <span class="lbl">메모리 주의</span>
+        <code>Predict</code> 생성자가 <code>MAX_MEMORY = 1 &lt;&lt; 22</code>개의 <code>Node</code>를 개별 <code>new</code>로 할당합니다 —
+        약 400 MB, 419만 번의 할당입니다. 노드렛 초기화가 눈에 띄게 느린 주 원인이고,
+        소멸자가 없어 프로세스 종료까지 해제되지 않습니다.
+        실제로는 100 ms 제한이 먼저 걸리므로 <code>1 &lt;&lt; 20</code> 정도로 줄여도 충분해 보입니다.
+      </div>
+    </section>
+
+    <!-- ============ 05 ============ -->
+    <section id="path">
+      <h2><span class="n">05</span>가시 경로 탐색</h2>
+      <p class="sec-note">env.hpp:410 · 링 휴리스틱 A*</p>
+
+      <p>
+        일반 A*는 목표 <em>지점</em>으로 수렴합니다. 여기서는 목표물 주위의 <em>원</em>(반지름
+        <code>tracking_dist</code>)으로 수렴해야 합니다. 휴리스틱 한 줄이 그 차이를 만듭니다.
+      </p>
+
+<pre><span class="cm">// env.hpp:417-427</span>
+double stop_dist = desired_dist_ / resolution;      <span class="cm">// 링 반지름 (셀)</span>
+Eigen::Vector3i dp = end_idx - ptr-&gt;idx;
+double dr     = dp.head(2).norm();
+double <b>lambda = 1 - stop_dist / dr</b>;                  <span class="cm">// ← 링까지 남은 비율</span>
+double dx = lambda*dp.x(), dy = lambda*dp.y(), dz = dp.z();
+ptr-&gt;h  = fabs(dx) + fabs(dy) + abs(dz);
+ptr-&gt;h += 0.001 * (fabs(dx*dy0 - dy*dx0) + abs(dz));  <span class="cm">// 외적 타이브레이커</span></pre>
+
+      <p>
+        <code>lambda</code>가 목표물까지의 벡터를 <b>링 위 지점까지의 벡터로 축소</b>합니다.
+        외적 항은 동일 비용 경로 중 직선에 가까운 쪽을 골라 6-연결 격자 특유의 계단 경로를 억제합니다.
+      </p>
+
+      <div class="eq">
+        <math display="block">
+          <mrow>
+            <mi mathvariant="normal">λ</mi><mo>=</mo>
+            <mn>1</mn><mo>−</mo>
+            <mfrac><msub><mi>r</mi><mtext>ring</mtext></msub><mrow><mo>‖</mo><mi>dp</mi><mo>‖</mo></mrow></mfrac>
+            <mspace width="2.2em"/><mo>⟹</mo><mspace width="0.8em"/>
+            <mrow><mo>‖</mo><mi mathvariant="normal">λ</mi><mspace width="0.1em"/><mi>dp</mi><mo>−</mo><mi>dp</mi><mo>‖</mo></mrow>
+            <mo>=</mo><msub><mi>r</mi><mtext>ring</mtext></msub>
+          </mrow>
+        </math>
+      </div>
+      <p class="eq-note">
+        <b>λ의 부호와 무관하게</b> 성립합니다 — 노드에서 <code>λ·dp</code>만큼 간 지점은
+        항상 링 위입니다. 이것이 이 휴리스틱의 전부입니다.
+      </p>
+
+      <figure>
+        <div class="fw">
+          <svg viewBox="0 0 620 300" role="img" aria-label="링 휴리스틱 도해. 목표물을 중심으로 반지름 r_ring의 원이 있고, 원 바깥 노드는 람다가 양수여서 벡터가 줄어들어 링에 닿고, 원 안쪽 노드는 람다가 음수여서 벡터가 반대로 뒤집혀 링 반대편에 닿습니다. 안쪽 노드일수록 h가 커져 탐색이 밖으로 밀려납니다.">
+            <defs>
+              <marker id="rh-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/>
+              </marker>
+              <marker id="rh-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--occupied)"/>
+              </marker>
+              <marker id="rh-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--ink-3)"/>
+              </marker>
+            </defs>
+
+            <circle cx="330" cy="150" r="90" fill="var(--accent-soft)" fill-opacity="0.45"
+                    stroke="var(--ink-3)" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <line x1="330" y1="150" x2="330" y2="60" stroke="var(--ink-3)" stroke-width="1"/>
+            <text x="336" y="106" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-3)">r_ring = 2.5 m</text>
+
+            <circle cx="330" cy="150" r="5.5" fill="var(--occupied)"/>
+            <text x="342" y="154" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--ink)">목표물</text>
+
+            <!-- CASE A: outside, lambda > 0 -->
+            <line x1="110" y1="70" x2="330" y2="150" stroke="var(--ink-3)" stroke-width="1"
+                  stroke-dasharray="3 3" marker-end="url(#rh-g)"/>
+            <line x1="110" y1="70" x2="245.4" y2="119.2" stroke="var(--accent)" stroke-width="2.4"
+                  marker-end="url(#rh-a)"/>
+            <circle cx="110" cy="70" r="4.5" fill="var(--accent)"/>
+            <circle cx="245.4" cy="119.2" r="4" fill="none" stroke="var(--accent)" stroke-width="2"/>
+            <text x="42" y="58" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--accent)">링 밖 노드</text>
+            <text x="42" y="88" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-2)">‖dp‖ = 4.9 m</text>
+            <text x="42" y="102" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--accent)">λ = +0.62</text>
+            <text x="150" y="122" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--accent)">λ·dp — 줄어듦</text>
+            <text x="222" y="146" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--ink-3)">dp (원래)</text>
+
+            <!-- CASE B: inside, lambda < 0 -->
+            <line x1="300" y1="130" x2="330" y2="150" stroke="var(--ink-3)" stroke-width="1"
+                  stroke-dasharray="3 3" marker-end="url(#rh-g)"/>
+            <line x1="300" y1="130" x2="255.1" y2="100.1" stroke="var(--occupied)" stroke-width="2.4"
+                  marker-end="url(#rh-b)"/>
+            <circle cx="300" cy="130" r="4.5" fill="var(--occupied)"/>
+            <circle cx="255.1" cy="100.1" r="4" fill="none" stroke="var(--occupied)" stroke-width="2"/>
+            <text x="330" y="224" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--occupied)">링 안쪽 노드</text>
+            <text x="330" y="240" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-2)">‖dp‖ = 0.75 m</text>
+            <text x="330" y="254" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--occupied)">λ = −1.50 → h 급증</text>
+            <line x1="326" y1="218" x2="304" y2="138" stroke="var(--occupied)" stroke-width="0.9" opacity="0.55"/>
+            <text x="150" y="92" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--occupied)">λ·dp — 뒤집혀 반대편으로</text>
+            <line x1="252" y1="88" x2="262" y2="96" stroke="var(--occupied)" stroke-width="0.9" opacity="0.55"/>
+
+            <text x="42" y="278" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-3)">두 경우 모두 화살표 끝은 정확히 링 위 — h는 "링까지의 거리"가 된다</text>
+          </svg>
+        </div>
+        <figcaption>
+          링 안쪽에서 <code>λ</code>가 음수가 되면 벡터가 <b>뒤집혀 링 반대편</b>을 가리키고,
+          <code>|λ|</code>가 커진 만큼 <code>h</code>도 커집니다. 목표물에 가까울수록 비싸지므로
+          탐색이 저절로 링 밖으로 밀려납니다 — 부등식 제약을 따로 넣지 않고 휴리스틱 한 줄로 해결한 셈입니다.
+        </figcaption>
+      </figure>
+
+      <h4>종료 조건은 두 개</h4>
+<pre><span class="cm">// env.hpp:414-416</span>
+return ptr-&gt;h &lt; tolerance_d_ / resolution   <span class="cm">// 링 위에 도달했고</span>
+       && <b>rayValid(ptr-&gt;idx, end_idx)</b>;      <span class="cm">// 목표물까지 시선이 뚫려 있다</span></pre>
+
+      <p>
+        거리만이 아니라 <b>가시성까지</b> 종료 조건에 들어간다는 점이 이 A*를 특별하게 만듭니다.
+        예측된 목표물 위치 16개에 대해 이 A*가 체인으로 실행되고, 각 도착점이 <code>way_pts</code>에 쌓입니다.
+      </p>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>함수</th><th>종료 조건</th><th>쓰이는 곳</th></tr></thead>
+          <tbody>
+            <tr><td class="name">findVisiblePath<br><span class="u">env.hpp:410</span></td><td>링 도달 <b>and</b> 시선 유효</td><td class="desc">추적 — 가시성 인지 경로</td></tr>
+            <tr><td class="name">astar_search<br><span class="u">env.hpp:536</span></td><td>거리만 (<code>h &lt; desired_dist</code>)</td><td class="desc">페이크 모드 내비게이션</td></tr>
+            <tr><td class="name">short_astar<br><span class="u">env.hpp:715</span></td><td>인덱스 정확 일치</td><td class="desc">착륙, <code>pts2path</code>의 구멍 메우기</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        세 함수는 람다 두 개(<code>stopCondition</code>, <code>calulateHeuristic</code>)만 다르고 본체 60여 행이 동일합니다.
+        탐색은 <b>6-연결</b>(면 이웃만)입니다. 26-연결이 아니라 경로가 맨해튼 계단 형태로 나오지만,
+        어차피 회랑을 씌우고 MINCO가 부드럽게 만들므로 문제되지 않고 브랜칭 팩터가 작아 훨씬 빠릅니다.
+        예산은 노드 <code>2¹⁸ = 262,144</code>개와 <code>MAX_DURATION</code> 200 ms인데,
+        후자는 <b>의도대로 작동하지 않습니다</b> — <code>t_cost</code>가 루프 안에서 갱신되지 않아
+        16회 호출 <em>사이</em>에서만 검사가 걸립니다 (§12).
+      </p>
+
+      <div class="note">
+        <span class="lbl">노드 풀</span>
+        <code>Env</code> 생성자가 262,144개 <code>Node</code>를 미리 할당하고, 매 탐색은 해시맵만 비웁니다
+        (<code>visited_nodes_.clear()</code>). 런타임 <code>new</code>/<code>delete</code>가 없어 지터가 억제됩니다 —
+        예측기와 달리 여기는 소멸자에서 제대로 해제합니다.
+      </div>
+    </section>
+
+    <!-- ============ 06 ============ -->
+    <section id="visible">
+      <h2><span class="n">06</span>가시 영역</h2>
+      <p class="sec-note">env.hpp:646 · visible_pair</p>
+
+      <p>
+        목표물 하나마다 "여기서 목표물이 보이는 각도 범위"를 부채꼴로 계산합니다.
+        시드 방위각에서 좌우로 <code>dθ = resolution / desired_dist / 2</code>씩 넓혀 가며
+        레이캐스팅이 막히는 지점을 찾습니다 — 호 길이가 셀 반 칸이 되는 각도 해상도입니다.
+      </p>
+
+      <div class="widget" id="w-fan">
+        <div class="widget-hd">
+          <span class="t">가시성 페널티 직접 만져보기</span>
+          <span class="h">env.hpp:646 · traj_opt.cc:700</span>
+        </div>
+        <div class="widget-body">
+          <div class="stage">
+            <svg id="vf-svg" viewBox="0 0 620 384" role="img" aria-label="목표물을 중심으로 한 부채꼴 가시 영역. 반지름 tracking_dist의 원 위에서 장애물에 막히지 않는 각도 범위가 부채꼴로 표시되고, 그 안쪽에 theta_clearance만큼 좁힌 허용 영역이 있습니다. 드론을 움직이면 가시성 페널티가 실시간으로 계산됩니다.">
+              <defs>
+                <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"/>
+                </marker>
+              </defs>
+
+              <!-- outer fan 120..240 (static) -->
+              <path d="M 330 190 L 270 86.1 A 120 120 0 0 0 270 293.9 Z"
+                    fill="var(--accent-soft)" stroke="var(--accent-line)" stroke-width="1"/>
+              <!-- inner allowed cone (dynamic) -->
+              <path id="vf-inner" d="" fill="var(--accent)" fill-opacity="0.3"
+                    stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 3"/>
+
+              <circle cx="330" cy="190" r="120" fill="none" stroke="var(--ink-3)"
+                      stroke-width="1" stroke-dasharray="4 5" opacity="0.7"/>
+
+              <line x1="330" y1="190" x2="270" y2="86.1" stroke="var(--ink-3)" stroke-width="1"/>
+              <line x1="330" y1="190" x2="270" y2="293.9" stroke="var(--ink-3)" stroke-width="1"/>
+              <line x1="330" y1="190" x2="289" y2="77.2" stroke="var(--occupied)" stroke-width="1.4" stroke-dasharray="3 3"/>
+              <line x1="330" y1="190" x2="289" y2="302.8" stroke="var(--occupied)" stroke-width="1.4" stroke-dasharray="3 3"/>
+
+              <rect x="272" y="42" width="78" height="36" fill="var(--occupied)" fill-opacity="0.85" rx="1"/>
+              <rect x="272" y="302" width="78" height="36" fill="var(--occupied)" fill-opacity="0.85" rx="1"/>
+
+              <!-- centre line b -->
+              <line x1="330" y1="190" x2="210" y2="190" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#ah)"/>
+              <text x="243" y="182" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--accent)">b</text>
+
+              <!-- dynamic: vector a, angle arc, drone -->
+              <line id="vf-ray" x1="330" y1="190" x2="226.1" y2="250" stroke="var(--ink)" stroke-width="1.6"/>
+              <path id="vf-arc" d="" fill="none" stroke="var(--ink-2)" stroke-width="1.3"/>
+              <text id="vf-alab" x="0" y="0" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--ink-2)">∠</text>
+              <text id="vf-avec" x="0" y="0" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink)">a</text>
+
+              <path d="M 285 190 A 45 45 0 0 1 307.5 151" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+              <text x="276" y="164" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--ink-3)">θ</text>
+
+              <circle cx="330" cy="190" r="6" fill="var(--occupied)"/>
+              <text x="343" y="195" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="var(--ink)">목표물 c</text>
+              <text x="343" y="211" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink-3)">target_predcit[i]</text>
+
+              <circle cx="210" cy="190" r="4.5" fill="var(--accent)"/>
+              <text x="112" y="180" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--accent)">visible_p</text>
+              <text x="112" y="194" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-3)">부채꼴 중심선</text>
+
+              <!-- draggable drone -->
+              <circle id="vf-halo" cx="226.1" cy="250" r="16" fill="var(--accent)" fill-opacity="0" style="cursor:grab"/>
+              <circle id="vf-drone" cx="226.1" cy="250" r="6.5" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.2" style="cursor:grab"/>
+              <text id="vf-dlab" x="150" y="232" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--ink)">드론 p(t) — 끌어보세요</text>
+
+              <g font-family="IBM Plex Mono, monospace" font-size="10.5">
+                <rect x="24" y="42" width="14" height="10" fill="var(--accent-soft)" stroke="var(--accent-line)"/>
+                <text x="44" y="51" fill="var(--ink-2)">보이는 범위 2θ</text>
+                <rect x="24" y="62" width="14" height="10" fill="var(--accent)" fill-opacity="0.3" stroke="var(--accent)" stroke-dasharray="2 2"/>
+                <text x="44" y="71" fill="var(--ink-2)">허용 영역 (동적)</text>
+                <line x1="24" y1="90" x2="38" y2="90" stroke="var(--occupied)" stroke-width="1.4" stroke-dasharray="3 3"/>
+                <text x="44" y="94" fill="var(--ink-2)">막힌 시선</text>
+              </g>
+              <text id="vf-flag" x="24" y="352" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--occupied)">가시성 위배 — pen = 0.104</text>
+            </svg>
+          </div>
+
+          <div class="ctl">
+            <div class="ctl-row">
+              <label for="vf-phi">드론 방위 φ</label>
+              <input type="range" id="vf-phi" min="60" max="300" step="0.5" value="210">
+              <output id="vf-phio">210°</output>
+            </div>
+            <div class="ctl-row">
+              <label for="vf-r">거리 ‖a‖</label>
+              <input type="range" id="vf-r" min="0.9" max="4.2" step="0.01" value="2.50">
+              <output id="vf-ro">2.50 m</output>
+            </div>
+            <div class="ctl-row">
+              <label for="vf-tc">θ_clearance</label>
+              <input type="range" id="vf-tc" min="0" max="1.15" step="0.01" value="0.8">
+              <output id="vf-tco">0.80 rad</output>
+            </div>
+          </div>
+
+          <div class="readout">
+            <div><div class="k">∠(a, b)</div><div class="v" id="vf-ang">30.0°</div></div>
+            <div><div class="k">θ_less</div><div class="v" id="vf-tl">14.2°</div></div>
+            <div><div class="k">pen</div><div class="v bad" id="vf-pen">0.104</div></div>
+            <div><div class="k">가시성 비용</div><div class="v bad" id="vf-cost">11</div></div>
+            <div><div class="k">추적 비용</div><div class="v ok" id="vf-track">0</div></div>
+          </div>
+
+          <p class="hint">
+            드론을 끌거나 슬라이더를 쓰세요. <b>θ_clearance를 1.05 이상</b>으로 올리면
+            <code>θ_less</code>가 0이 되어 허용 영역이 중심선 하나로 붕괴합니다 —
+            시야가 좁을수록 제약이 강해진다는 뜻입니다.
+            <b>거리를 2.2 밖으로</b> 밀면 추적 비용이 따로 살아납니다.
+          </p>
+        </div>
+      </div>
+      <p class="cap">
+        부채꼴은 <code>t_l</code>에서 <code>t_r</code>까지, 중심선은 <code>θ_v = (t_l + t_r)/2</code>,
+        반각은 <code>θ = (t_r − t_l)/2</code>. 위 그림의 θ는 60°로 고정해 두었습니다.
+      </p>
+
+      <div class="eq">
+        <math display="block">
+          <mrow>
+            <mi>a</mi><mo>=</mo><mi>p</mi><mo>−</mo><mi>c</mi>
+            <mo>,</mo><mspace width="1.2em"/>
+            <mi>b</mi><mo>=</mo><msub><mi>p</mi><mtext>vis</mtext></msub><mo>−</mo><mi>c</mi>
+            <mo>,</mo><mspace width="1.2em"/>
+            <msub><mi mathvariant="normal">θ</mi><mtext>less</mtext></msub><mo>=</mo>
+            <mi>max</mi><mo stretchy="false">(</mo><mi mathvariant="normal">θ</mi><mo>−</mo><msub><mi mathvariant="normal">θ</mi><mi>c</mi></msub><mo>,</mo><mn>0</mn><mo stretchy="false">)</mo>
+          </mrow>
+        </math>
+        <math display="block">
+          <mrow>
+            <mi>pen</mi><mo>=</mo>
+            <mi>cos</mi><mspace width="0.15em"/><msub><mi mathvariant="normal">θ</mi><mtext>less</mtext></msub>
+            <mo>−</mo>
+            <mfrac>
+              <mrow><mi>a</mi><mo>·</mo><mi>b</mi></mrow>
+              <mrow><mo>‖</mo><mi>a</mi><mo>‖</mo><mspace width="0.15em"/><mo>‖</mo><mi>b</mi><mo>‖</mo></mrow>
+            </mfrac>
+            <mo>,</mo><mspace width="1.6em"/>
+            <msub><mi>J</mi><mtext>vis</mtext></msub><mo>=</mo>
+            <msub><mi mathvariant="normal">ρ</mi><mtext>vis</mtext></msub>
+            <msup><mrow><mo>[</mo><mi>pen</mi><mo>]</mo></mrow><mn>3</mn></msup>
+            <mspace width="0.5em"/>
+            <mtext>(pen &gt; 0 일 때만)</mtext>
+          </mrow>
+        </math>
+      </div>
+      <p class="eq-note">
+        코사인끼리 비교하므로 <b>역삼각함수가 필요 없습니다</b> —
+        <code>acos</code> 한 번 없이 각도 제약이 걸립니다.
+        <code>pen &gt; 0</code>은 드론이 허용 원뿔 밖이라는 뜻입니다.
+      </p>
+
+      <h3>시드를 안쪽으로 미는 부분</h3>
+      <p>
+        <code>visible_pair()</code>는 부채꼴만 계산하고 끝나지 않습니다. <b>시드가 가장자리에 너무 붙어 있으면
+        직접 안쪽으로 밀어 넣습니다.</b>
+      </p>
+
+<pre><span class="cm">// env.hpp:672-681 — seed는 참조 전달, 호출자의 way_pts가 직접 수정된다</span>
+double theta_c = min(theta, theta_clearance_);
+if (theta0 - t_l &lt; theta_c) {
+  <b>seed</b> = center + desired_dist * (cos(t_l + theta_c), sin(t_l + theta_c));
+} else if (t_r - theta0 &lt; theta_c) {
+  <b>seed</b> = center + desired_dist * (cos(t_r - theta_c), sin(t_r - theta_c));
+}</pre>
+
+      <p>
+        수정된 <code>way_pts</code>가 곧바로 <code>pts2path</code> → <code>generateSFC</code>로 흘러가므로,
+        회랑 자체가 <b>여유 있는 각도의 경로</b>를 기준으로 만들어집니다.
+        가시성 제약이 최적화의 비용 항에만 있는 것이 아니라 <b>경로 탐색과 회랑 생성에도 반영되는</b> 지점입니다.
+      </p>
+
+      <h3>최적화 쪽의 대응 비용</h3>
+<pre><span class="cm">// traj_opt.cc:700-716</span>
+a = p - center;  b = vis_p - center;
+theta_less = max(theta - theta_clearance_, 0);
+<b>pen = cos(theta_less) - (a·b)/(|a|·|b|);</b>
+if (pen &gt; 0) {                       <span class="cm">// 허용 영역 밖</span>
+  costp = pen³;
+  gradp = 3·pen² · -(|a|·b - (a·b)/|a| · a) / (|a|²·|b|);
+}</pre>
+
+      <p>
+        부채꼴이 <code>θ_clearance</code>(0.8 rad ≈ 46°)보다 좁으면 <code>theta_less = 0</code>이 되어
+        <b>중심선 정렬을 강제</b>합니다. 즉 시야가 좁을수록 제약이 강해지는, 물리적으로 옳은 방향으로 동작합니다.
+      </p>
+    </section>
+
+    <!-- ============ 07 ============ -->
+    <section id="sfc">
+      <h2><span class="n">07</span>안전 회랑</h2>
+      <p class="sec-note">env.hpp:279 · generateSFC</p>
+
+      <p>
+        A* 경로를 <b>가시선 단위로 탐욕 분할</b>하고, 각 선분마다 DecompROS의
+        <code>EllipsoidDecomp3D</code>로 최대 타원체를 부풀려 그 접평면들로 볼록 다면체를 만듭니다.
+      </p>
+
+<pre><span class="cm">// env.hpp:299-315</span>
+while (idx &lt; path_len - 1) {
+  <span class="cm">// ① 한 직선으로 볼 수 있는 가장 먼 점까지 전진 (bbox_width = 2.0 m 제한)</span>
+  while (next_idx+1 &lt; path_len && checkRayValid(path[idx], path[next_idx+1], bbox_width))
+    next_idx++;
+  <span class="cm">// ② 그 선분 주변 점군으로 다면체 생성</span>
+  getPointCloudAroundLine(line, maxWidth, obs_pc);
+  decomp_util.set_obs(obs_pc);  decomp_util.dilate(line);
+  <span class="cm">// ③ 만들어진 다면체 안에 들어오는 경로점은 건너뛰기</span>
+  while (idx+1 &lt; path_len && decompPolys.back().inside(path[idx+1])) idx++;
+}</pre>
+
+      <figure>
+        <div class="fw">
+          <svg viewBox="0 0 620 232" role="img" aria-label="안전 회랑 생성의 탐욕 루프 3단계. 1단계는 시작점에서 가시선이 닿는 가장 먼 경로점을 찾고, 2단계는 그 선분 주변에 볼록 다면체를 부풀리고, 3단계는 그 다면체 안에 들어온 경로점을 건너뛴 뒤 반복합니다.">
+            <defs>
+              <marker id="sfc-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--ink-3)"/>
+              </marker>
+            </defs>
+
+            <!-- ============ panel 1 ============ -->
+            <g transform="translate(10,0)">
+              <text x="0" y="14" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="var(--accent)">① 가장 먼 가시점 찾기</text>
+              <rect x="104" y="70" width="48" height="34" fill="var(--occupied)" fill-opacity="0.85" rx="1"/>
+              <polyline points="44,60 62,88 82,112 108,128 138,136 170,128" fill="none"
+                        stroke="var(--ink-3)" stroke-width="1.4" stroke-dasharray="3 3"/>
+              <line x1="44" y1="60" x2="62" y2="88" stroke="var(--accent)" stroke-width="1.1"/>
+              <line x1="44" y1="60" x2="82" y2="112" stroke="var(--accent)" stroke-width="1.1"/>
+              <line x1="44" y1="60" x2="108" y2="128" stroke="var(--accent)" stroke-width="1.1"/>
+              <line x1="44" y1="60" x2="138" y2="136" stroke="var(--accent)" stroke-width="2.2"/>
+              <line x1="44" y1="60" x2="170" y2="128" stroke="var(--occupied)" stroke-width="1.6" stroke-dasharray="4 3"/>
+              <circle cx="44" cy="60" r="4.5" fill="var(--accent)"/>
+              <circle cx="62" cy="88" r="3" fill="var(--ink-3)"/>
+              <circle cx="82" cy="112" r="3" fill="var(--ink-3)"/>
+              <circle cx="108" cy="128" r="3" fill="var(--ink-3)"/>
+              <circle cx="138" cy="136" r="5" fill="none" stroke="var(--accent)" stroke-width="2.4"/>
+              <circle cx="170" cy="128" r="3" fill="var(--occupied)"/>
+              <text x="20" y="52" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--accent)">idx</text>
+              <text x="128" y="158" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--accent)">next_idx</text>
+              <text x="158" y="150" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--occupied)">막힘</text>
+              <text x="0" y="186" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--ink-2)">checkRayValid 이 실패하기</text>
+              <text x="0" y="199" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--ink-2)">직전까지 next_idx 전진</text>
+              <text x="0" y="216" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="var(--ink-3)">bbox_width = 2.0 m 로 길이 제한</text>
+            </g>
+
+            <!-- ============ panel 2 ============ -->
+            <g transform="translate(215,0)">
+              <text x="0" y="14" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="var(--accent)">② 선분 주변에 다면체</text>
+              <path d="M 18.3 72.7 L 43.5 41.6 L 156.1 132.6 L 130.9 163.7 Z"
+                    fill="var(--accent)" fill-opacity="0.16" stroke="var(--accent)" stroke-width="1.6"/>
+              <rect x="104" y="70" width="48" height="34" fill="var(--occupied)" fill-opacity="0.85" rx="1"/>
+              <polyline points="44,60 62,88 82,112 108,128 138,136 170,128" fill="none"
+                        stroke="var(--ink-3)" stroke-width="1.4" stroke-dasharray="3 3"/>
+              <line x1="44" y1="60" x2="138" y2="136" stroke="var(--accent)" stroke-width="2.4"/>
+              <circle cx="44" cy="60" r="4.5" fill="var(--accent)"/>
+              <circle cx="138" cy="136" r="5" fill="none" stroke="var(--accent)" stroke-width="2.4"/>
+              <circle cx="62" cy="88" r="3" fill="var(--ink-3)"/>
+              <circle cx="82" cy="112" r="3" fill="var(--ink-3)"/>
+              <circle cx="108" cy="128" r="3" fill="var(--ink-3)"/>
+              <circle cx="170" cy="128" r="3" fill="var(--ink-3)"/>
+              <text x="60" y="42" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--accent)">EllipsoidDecomp3D</text>
+              <text x="0" y="186" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--ink-2)">장애물 쪽으로는 눌리고</text>
+              <text x="0" y="199" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--ink-2)">빈 쪽으로는 부풀어 오름</text>
+              <text x="0" y="216" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="var(--ink-3)">6 × M 행렬, 각 열이 [n; p]</text>
+            </g>
+
+            <!-- ============ panel 3 ============ -->
+            <g transform="translate(420,0)">
+              <text x="0" y="14" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="var(--accent)">③ 안쪽 점 건너뛰고 반복</text>
+              <path d="M 18.3 72.7 L 43.5 41.6 L 156.1 132.6 L 130.9 163.7 Z"
+                    fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent-line)" stroke-width="1.2"/>
+              <rect x="104" y="70" width="48" height="34" fill="var(--occupied)" fill-opacity="0.85" rx="1"/>
+              <polyline points="44,60 62,88 82,112 108,128 138,136 170,128" fill="none"
+                        stroke="var(--ink-3)" stroke-width="1.4" stroke-dasharray="3 3"/>
+              <circle cx="44" cy="60" r="3.5" fill="var(--ink-3)" opacity="0.45"/>
+              <circle cx="62" cy="88" r="3" fill="var(--ink-3)" opacity="0.45"/>
+              <circle cx="82" cy="112" r="3" fill="var(--ink-3)" opacity="0.45"/>
+              <circle cx="108" cy="128" r="3" fill="var(--ink-3)" opacity="0.45"/>
+              <circle cx="138" cy="136" r="5.5" fill="var(--accent)"/>
+              <circle cx="170" cy="128" r="3" fill="var(--ink-3)"/>
+              <path d="M 138 152 q 18 16 30 0" fill="none" stroke="var(--ink-3)" stroke-width="1.2" marker-end="url(#sfc-a)"/>
+              <text x="42" y="106" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="var(--ink-3)">이미 덮임</text>
+              <text x="116" y="176" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--accent)">새 idx</text>
+              <text x="0" y="186" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--ink-2)">poly.inside(path[idx+1]) 인 동안</text>
+              <text x="0" y="199" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--ink-2)">idx 를 밀어 회랑 수를 줄임</text>
+              <text x="0" y="216" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="var(--ink-3)">다면체 1개 → 궤적 조각 2개</text>
+            </g>
+          </svg>
+        </div>
+        <figcaption>
+          <code>generateSFC</code>의 바깥 <code>while</code> 한 바퀴입니다 (<code>env.hpp:299–315</code>).
+          경로점 개수가 아니라 <b>가시선이 끊기는 횟수</b>가 회랑 개수를 정하므로,
+          뻥 뚫린 공간에서는 다면체가 몇 개 안 나오고 최적화 변수도 그만큼 줄어듭니다.
+        </figcaption>
+      </figure>
+
+      <p>
+        다면체 하나는 <code>6 × M</code> 행렬입니다. 각 열이 <code>[n(3); p(3)]</code>이고
+        내부 조건은 <code>n·(x − p) ≤ 0</code>. 다면체 개수가 궤적 조각 수의 절반이므로
+        여기서 <code>N = 2 × hPolys.size()</code>가 결정됩니다.
+      </p>
+
+      <div class="eq">
+        <math display="block">
+          <mrow>
+            <mi mathvariant="script">P</mi><mo>=</mo>
+            <mo>{</mo><mi>x</mi><mo>∈</mo><msup><mi mathvariant="double-struck">R</mi><mn>3</mn></msup><mo>:</mo>
+            <msubsup><mi>n</mi><mi>k</mi><mi>⊤</mi></msubsup>
+            <mo stretchy="false">(</mo><mi>x</mi><mo>−</mo><msub><mi>p</mi><mi>k</mi></msub><mo stretchy="false">)</mo>
+            <mo>+</mo><msub><mi>c</mi><mi>d</mi></msub>
+            <mo>≤</mo><mn>0</mn>
+            <mo>,</mo><mspace width="0.5em"/>
+            <mi>k</mi><mo>=</mo><mn>1</mn><mo>…</mo><mi>M</mi><mo>}</mo>
+          </mrow>
+        </math>
+      </div>
+      <p class="eq-note">
+        <b>c<sub>d</sub></b> = <code>clearance_d</code> = 0.2 m — 면을 안쪽으로 밀어 여유를 둡니다
+        (<code>traj_opt.cc:570</code>). 위배량 <code>pen</code>이 양수면 비용 <b>ρ<sub>P</sub>·pen³</b>가 붙습니다.
+      </p>
+
+      <h4>국소 점군만 훑는 이유</h4>
+      <p>
+        전체 맵을 <code>set_obs</code>에 넘기면 느립니다. <code>getPointCloudAroundLine</code>은
+        선분을 따라 레이캐스팅하며 <b>진행 방향에 수직인 단면만</b> 검사합니다 —
+        시작점에서 <code>(2·maxWidth+1)³ ≈ 19,683</code>셀 큐브를 한 번 전수 조사한 뒤,
+        이후로는 두께 0의 단면만 더합니다.
+      </p>
+
+      <h4>후처리 세 단계</h4>
+      <div class="tw">
+        <table>
+          <thead><tr><th>단계</th><th>동작</th><th>목적</th></tr></thead>
+          <tbody>
+            <tr><td class="name">병합<br><span class="u">:228 filterCorridor</span></td><td><code>i</code>와 <code>i−2</code>의 교집합에 반지름 1.0 내접구가 들면 <code>i−1</code> 삭제</td><td class="desc">회랑 개수를 줄여 최적화 변수 절약</td></tr>
+            <tr><td class="name">수축<br><span class="u">:158 compressPoly</span></td><td>모든 평면을 안쪽으로 0.1 m</td><td class="desc">경계에 딱 붙는 것 방지</td></tr>
+            <tr><td class="name">연결성 보정<br><span class="u">:344–357</span></td><td>인접 두 다면체의 교집합이 비면 한쪽을 −0.1로 되부풀림</td><td class="desc">웨이포인트를 놓을 자리 확보 — 필수</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        세 번째가 없으면 안 됩니다. 인접 다면체의 교집합이 비면 그 자리에 놓일 MINCO 웨이포인트의
+        볼록 영역이 사라지고, <code>extractVs</code>가 실패하거나 최적화가 발산합니다.
+      </p>
+
+      <div class="note">
+        <span class="lbl">주의</span>
+        수축 단계의 조건문이 루프 변수 <code>hPolys[i]</code>가 아니라 루프 밖 <code>current_poly</code>를 검사합니다
+        (§12 참조). 조건이 모든 <code>i</code>에 대해 동일하게 평가되지만, 세 번째 단계가
+        최악의 경우를 막아 주고 있습니다.
+      </div>
+    </section>
+
+    <!-- ============ 08 ============ -->
+    <section id="opt">
+      <h2><span class="n">08</span>시공간 최적화</h2>
+      <p class="sec-note">traj_opt.cc:167 · objectiveFunc</p>
+
+      <h3>목적함수</h3>
+<pre>J = J_jerk                                              <span class="cm">// MINCO 고유 비용</span>
+  + Σ<sub>pieces</sub> ∫ [ ρ_P·corridor + ρ_V·vel + ρ_A·acc ] dt      <span class="cm">// addTimeIntPenalty</span>
+  + Σ<sub>targets</sub> <b>ρ(i)</b> · [ ρ_track·tracking + ρ_vis·visibility ]   <span class="cm">// addTimeCost</span>
+  + ρ_T · deltaT²                                       <span class="cm">// 시간 벌점</span></pre>
+
+      <h3>시간 변수 변환</h3>
+      <p>
+        <code>T_i &gt; 0</code>과 <code>ΣT_i = sumT</code>를 동시에 만족시켜야 합니다.
+        <code>M = N−1</code>개의 자유 변수로 <code>N</code>개의 시간을 만들되 합이 정확히 보존되는 사상을 씁니다.
+      </p>
+
+<pre><span class="cm">// traj_opt.cc:12-30</span>
+static double <b>expC2</b>(double t) {          <span class="cm">// 항상 양수, C² 연속, exp보다 싸고 오버플로 없음</span>
+  return t &gt; 0 ? ((0.5*t + 1.0)*t + 1.0)
+               : 1.0 / ((0.5*t - 1.0)*t + 1.0);
+}
+static void forwardT(t, sT, vecT) {
+  for (i &lt; M) vecT(i) = expC2(t(i));
+  vecT(M) = 0.0;
+  vecT /= 1.0 + vecT.sum();               <span class="cm">// 정규화</span>
+  vecT(M) = 1.0 - vecT.sum();             <span class="cm">// 마지막 조각은 나머지</span>
+  vecT *= sT;
+}</pre>
+
+      <h3>웨이포인트 변수 변환</h3>
+      <p>
+        각 웨이포인트를 다면체 꼭짓점들의 볼록 결합으로 표현하되, 가중치를 무제약 파라미터로 만듭니다.
+      </p>
+
+<pre><span class="cm">// traj_opt.cc:73-76 — 역 스테레오 사영</span>
+<b>q = 2.0 / (1.0 + |p|²) * p;</b>                      <span class="cm">// |q|² ≤ 1 이 항상 성립</span>
+inP.col(i) = cfgPolyVs[i].rightCols(k) * q.cwiseProduct(q)
+           + cfgPolyVs[i].col(0);                <span class="cm">// → 언제나 다면체 안쪽</span></pre>
+
+      <div class="eq">
+        <math display="block">
+          <mrow>
+            <mi>q</mi><mo>=</mo>
+            <mfrac><mrow><mn>2</mn><mi>p</mi></mrow><mrow><mn>1</mn><mo>+</mo><msup><mrow><mo>‖</mo><mi>p</mi><mo>‖</mo></mrow><mn>2</mn></msup></mrow></mfrac>
+            <mo>,</mo><mspace width="1.2em"/>
+            <mi>w</mi><mo>=</mo><mi>q</mi><mo>∘</mo><mi>q</mi>
+            <mo>,</mo><mspace width="1.2em"/>
+            <mi>x</mi><mo>=</mo><mi>V</mi><mi>w</mi><mo>+</mo><msub><mi>v</mi><mn>0</mn></msub>
+          </mrow>
+        </math>
+        <math display="block">
+          <mrow>
+            <mn>1</mn><mo>−</mo><msup><mrow><mo>‖</mo><mi>q</mi><mo>‖</mo></mrow><mn>2</mn></msup>
+            <mo>=</mo>
+            <mn>1</mn><mo>−</mo>
+            <mfrac><mrow><mn>4</mn><mi>s</mi></mrow><msup><mrow><mo>(</mo><mn>1</mn><mo>+</mo><mi>s</mi><mo>)</mo></mrow><mn>2</mn></msup></mfrac>
+            <mo>=</mo>
+            <mfrac><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>s</mi><mo>)</mo></mrow><mn>2</mn></msup><msup><mrow><mo>(</mo><mn>1</mn><mo>+</mo><mi>s</mi><mo>)</mo></mrow><mn>2</mn></msup></mfrac>
+            <mo>≥</mo><mn>0</mn>
+            <mspace width="1.4em"/>
+            <mo stretchy="false">(</mo><mi>s</mi><mo>=</mo><msup><mrow><mo>‖</mo><mi>p</mi><mo>‖</mo></mrow><mn>2</mn></msup><mo stretchy="false">)</mo>
+          </mrow>
+        </math>
+      </div>
+      <p class="eq-note">
+        한 줄짜리 항등식이 전부입니다. <b>‖q‖² ≤ 1</b>이 모든 <code>p</code>에 대해 성립하므로
+        <b>w</b>는 항상 유효한 볼록 결합 가중치(<code>w<sub>k</sub> ≥ 0</code>, <code>Σw<sub>k</sub> ≤ 1</code>)가 되고,
+        <b>V</b>의 열이 다면체 꼭짓점이므로 <b>x</b>는 언제나 그 안쪽입니다.
+      </p>
+
+      <p>
+        <code>q∘q</code>(성분별 제곱)의 합이 1 이하이므로 볼록 결합의 가중치로 유효합니다.
+        <b>어떤 <code>p</code> 값에 대해서도</b> 결과가 다면체를 벗어나지 않습니다.
+        꼭짓점 열거는 <code>quickhull.hpp</code>, 초기값은 <code>backwardP</code>가 128회 L-BFGS 최소제곱으로 구합니다.
+      </p>
+
+      <div class="note">
+        <span class="lbl">변수 배치</span>
+        <code>extractVs</code>는 다면체 <code>M+1</code>개에 대해 <em>i번째 다면체 자체</em>와
+        <em>i와 i+1의 교집합</em>을 번갈아 넣어 <code>2M+1</code>개의 볼록 영역을 만듭니다.
+        <code>N = 2(M+1)</code>이므로 중간 웨이포인트 수 <code>N−1 = 2M+1</code>과 정확히 일치합니다 —
+        웨이포인트 하나당 담길 영역이 정확히 하나씩 배정되는 구조입니다.
+      </div>
+
+      <h3>시간 그래디언트가 두 항인 이유</h3>
+<pre><span class="cm">// traj_opt.cc:469</span>
+jerkOpt_.gdT(i) += omg * ( <b>cost_tmp / K_</b> + <b>step * gradViolaPt</b> );
+                          <span class="cm">//  ↑ 구간이 길어지면    ↑ 샘플 시각이 바뀌면</span>
+                          <span class="cm">//    적분 구간도 길어짐    그 지점의 상태도 바뀜</span></pre>
+      <p>둘 다 있어야 시공간 <em>동시</em> 최적화가 성립합니다. 하나만으로는 시간이 형상과 무관하게 움직입니다.</p>
+
+      <h3>목표물 비용의 두 가지 설계 결정</h3>
+<pre><span class="cm">// traj_opt.cc:495-497</span>
+int M = tracking_ps_.size() * <b>4 / 5</b>;      <span class="cm">// ① 예측 앞쪽 80%만 사용</span>
+double rho = <b>exp2(-3.0 * i / M)</b>;          <span class="cm">// ② 가까운 미래에 최대 8배 가중</span></pre>
+      <p>
+        예측 뒷부분은 불확실하므로 제외하고, 남은 부분도 가까울수록 무겁게 봅니다.
+        20 Hz로 계속 다시 계획하는 상황에서 먼 미래를 정확히 맞출 이유가 없다는 판단입니다.
+      </p>
+
+      <h3>페널티 함수의 형태</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>비용</th><th>위배량 pen</th><th>형태</th><th>이유</th></tr></thead>
+          <tbody>
+            <tr><td class="name">회랑<span class="u"> :560</span></td><td><code>n·(p − p₀ + c·n)</code></td><td>pen³</td><td class="desc">0.2 m 여유 포함, 부드러운 3차</td></tr>
+            <tr><td class="name">추적 (멀다)<span class="u"> :620</span></td><td><code>dr² − (d+tol)²</code></td><td>4차 → 선형</td><td class="desc"><code>penF</code>가 <code>2ε</code> 밖에서 기울기 16로 <b>선형화</b> — 크게 벗어나도 그래디언트가 폭발하지 않음</td></tr>
+            <tr><td class="name">추적 (가깝다)</td><td><code>(d−tol)² − dr²</code></td><td>pen³</td><td class="desc">순수 3차 — 가까울수록 급격히 밀어냄</td></tr>
+            <tr><td class="name">가시성<span class="u"> :700</span></td><td><code>cos θ_less − cos∠</code></td><td>pen³</td><td class="desc">코사인이라 역삼각함수 불필요</td></tr>
+            <tr><td class="name">속도 / 가속도<span class="u"> :727 :739</span></td><td><code>|v|² − v²_max</code></td><td>pen³</td><td class="desc">제곱 노름 — 미분에 나눗셈 없음</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        "멀다"만 선형화하고 "가깝다"는 3차로 둔 것이 의도적입니다.
+        멀어지는 것은 회복 가능하지만, 목표물에 너무 붙는 것은 즉시 위험합니다.
+        코드에 있는 두 함수를 그대로 그려 보면 그 설계가 보입니다.
+      </p>
+
+      <div class="eq">
+        <math display="block">
+          <mrow>
+            <mtext>penF</mtext><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo>
+            <mrow>
+              <mo>{</mo>
+              <mtable columnalign="left left">
+                <mtr>
+                  <mtd><mrow><mfrac><mn>4</mn><msup><mi mathvariant="normal">ε</mi><mn>2</mn></msup></mfrac><msup><mi>x</mi><mn>3</mn></msup><mo>−</mo><mfrac><msup><mi>x</mi><mn>4</mn></msup><msup><mi mathvariant="normal">ε</mi><mn>3</mn></msup></mfrac></mrow></mtd>
+                  <mtd><mrow><mi>x</mi><mo>&lt;</mo><mn>2</mn><mi mathvariant="normal">ε</mi></mrow></mtd>
+                </mtr>
+                <mtr>
+                  <mtd><mrow><mn>16</mn><mo stretchy="false">(</mo><mi>x</mi><mo>−</mo><mi mathvariant="normal">ε</mi><mo stretchy="false">)</mo></mrow></mtd>
+                  <mtd><mrow><mi>x</mi><mo>≥</mo><mn>2</mn><mi mathvariant="normal">ε</mi></mrow></mtd>
+                </mtr>
+              </mtable>
+            </mrow>
+            <mspace width="2em"/>
+            <mtext>penF2</mtext><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><msup><mi>x</mi><mn>3</mn></msup>
+          </mrow>
+        </math>
+      </div>
+      <p class="eq-note">
+        <b>ε = 0.05</b> (<code>traj_opt.cc:599</code>) · 두 조각은 <code>x = 2ε</code>에서 값과 기울기가
+        모두 이어집니다 — 4차 조각이 그 지점에서 정확히 기울기 16에 도달하도록 계수가 맞춰져 있습니다.
+      </p>
+
+      <figure>
+        <div class="legend">
+          <span><i style="background:var(--chart-1)"></i>penF — 너무 멀 때</span>
+          <span><i style="background:var(--chart-2)"></i>penF2 = x³ — 너무 가까울 때</span>
+        </div>
+        <div class="fw charts">
+          <svg id="ch-val" viewBox="0 0 300 196" role="img" aria-label="위배량에 대한 페널티 값 그래프. penF는 기울기 16의 직선으로 자라고, x의 세제곱은 곡선으로 자라 위배량 약 3.95에서 penF를 따라잡습니다."></svg>
+          <svg id="ch-grad" viewBox="0 0 300 196" role="img" aria-label="위배량에 대한 페널티 그래디언트 그래프. penF의 그래디언트는 16에서 평평하게 포화되고, x 세제곱의 그래디언트 3x제곱은 위배량 2.31에서 16을 넘어 계속 커집니다."></svg>
+        </div>
+        <figcaption>
+          왼쪽은 <b>비용</b>, 오른쪽은 <b>그래디언트</b>. 오른쪽이 설계 의도를 드러냅니다 —
+          <span style="color:var(--chart-1)">penF의 그래디언트는 16에서 평평하게 포화</span>되지만
+          <span style="color:var(--chart-2)">x³의 그래디언트 3x²는 상한이 없습니다</span>.
+          목표물에서 크게 벗어나도 최적화가 터지지 않고, 너무 붙으면 무한정 세게 밀어냅니다.
+        </figcaption>
+      </figure>
+
+      <h3>L-BFGS 설정</h3>
+      <div class="kv">
+        <div><div class="k">mem_size</div><div class="v">16</div></div>
+        <div><div class="k">past</div><div class="v">3</div></div>
+        <div><div class="k">g_epsilon</div><div class="v">1e-10</div></div>
+        <div><div class="k">delta</div><div class="v">1e-4</div></div>
+        <div><div class="k">조기 종료</div><div class="v">1000 <small>iter</small></div></div>
+      </div>
+      <p>
+        조기 종료가 <b>시간이 아닌 반복 횟수</b> 기준(<code>earlyExit</code>: <code>return k &gt; 1e3</code>)이라는 점이
+        구조적 약점입니다. 실시간 보장이 필요하면 경과 시간 검사로 바꾸는 것이 직접적인 해법입니다.
+      </p>
+    </section>
+
+    <!-- ============ 09 ============ -->
+    <section id="map">
+      <h2><span class="n">09</span>점유 격자</h2>
+      <p class="sec-note">mapping.h · mapping.cc · 링버퍼 + 로그오드</p>
+
+      <p>
+        크기를 2의 거듭제곱으로 강제해 <b>모듈러 연산을 비트 AND로 대체</b>합니다.
+        <code>local_x=20, resolution=0.15</code>면 <code>133.3 → 2⁷ = 128</code>셀로 내려가므로
+        실제 로컬 맵은 19.2 m입니다.
+      </p>
+
+<pre><span class="cm">// mapping.h:22-25</span>
+inline const int idx2add(int x, int N) const {
+  <span class="cm">// return x % N &gt;= 0 ? x % N : x % N + N;</span>
+  <span class="cm">// NOTE this is much faster than before!!</span>
+  return <b>(x &amp; N)</b> &gt;= 0 ? (x &amp; N) : (x &amp; N) + N;
+}</pre>
+
+      <h4>네 개의 병렬 버퍼</h4>
+      <div class="tw">
+        <table>
+          <thead><tr><th>버퍼</th><th>타입</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td class="name">pro</td><td>int16</td><td class="desc">로그오드 점유 확률 (<code>p_min</code> −199 … <code>p_max</code> 220)</td></tr>
+            <tr><td class="name">occ</td><td>uint16</td><td class="desc">인플레이션 겹침 카운터</td></tr>
+            <tr><td class="name">infocc</td><td>int8</td><td class="desc">인플레이트된 최종 점유 — <span style="color:var(--occupied)">1 점유</span> / <span style="color:var(--free)">−1 자유</span> / <span style="color:var(--unknown)">0 미지</span>. <b>메시지로 나가는 건 이것뿐</b></td></tr>
+            <tr><td class="name">vis</td><td>int8</td><td class="desc">현재 프레임 방문 표시 — 중복 레이캐스팅 방지</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>상태 전이 순간에만 인플레이션</h4>
+<pre><span class="cm">// mapping.h:218-225</span>
+inline void hit(idx) {
+  bool occ_pre = pro.at(ad) &gt; p_occ;
+  pro.at(ad) = min(pro.at(ad) + p_hit, p_max);
+  bool occ_now = pro.at(ad) &gt; p_occ;
+  <b>if (!occ_pre &amp;&amp; occ_now) free2occ(idx);</b>   <span class="cm">// 전이할 때만 주변 셀 갱신</span>
+  vis.at(ad) = 1;
+}</pre>
+
+      <p>
+        <code>free2occ</code>가 주변 <code>(2·inflate_size+1)³</code> 셀의 카운터를 올리고,
+        <code>occ2free</code>가 내립니다. 카운터가 <code>&gt; 0</code>인 동안은 다른 점유 셀이 아직 부풀리고 있다는 뜻이므로
+        <code>infocc</code>를 1로 유지합니다 — 인플레이션 영역이 겹쳐도 올바르게 관리되는 이유입니다.
+      </p>
+
+      <h4>빈 깊이 픽셀</h4>
+      <p>
+        깊이 값 0인 픽셀을 버리지 않고 <code>range + 0.5</code>로 바꿔 센서 최대 거리 밖으로 취급합니다.
+        <code>filter()</code>가 이를 센서 거리에서 잘라내고 <code>false</code>를 반환하므로 끝점은
+        <code>hit</code>이 아니라 <code>mis</code>로 처리됩니다 — <b>광선 경로는 비워 주되 끝점을 장애물로 찍지 않습니다.</b>
+        깊이가 안 잡히는 표면 때문에 유령 장애물이 생기는 것을 막는 처리입니다.
+      </p>
+
+      <h4>링버퍼 이동</h4>
+      <p>
+        드론이 움직이면 맵 원점이 따라 움직입니다. 전체를 복사하는 대신 x, y, z 축마다
+        <b>빠져나간 슬래브 하나씩, 총 3번의 부분 초기화</b>로 끝냅니다.
+      </p>
+
+      <div class="note">
+        <span class="lbl">복사 비용</span>
+        <code>OccMap3d</code> 한 개는 기본 설정에서 <code>128 × 128 × 32 = 524,288</code>바이트입니다.
+        nodelet 내부 전달은 제로카피지만, <code>from_msg()</code>가 벡터를 복사하고
+        <code>prePtr_-&gt;setMap()</code>이 <code>OccGridMap</code>을 값으로 받아 또 복사합니다 —
+        매 사이클 512 KB × 2회입니다.
+      </div>
+    </section>
+
+    <!-- ============ 10 ============ -->
+    <section id="state">
+      <h2><span class="n">10</span>리플랜 상태</h2>
+      <p class="sec-note">ReplanState.state · planning_nodelet.cpp:383–424</p>
+
+      <p>매 사이클의 판정 결과가 <code>ReplanState</code> 메시지의 <code>state</code> 필드로 발행됩니다.</p>
+
+      <div class="states">
+        <div class="row"><div class="code s-idle">−1</div><div class="nm">HOVERING</div><div class="ds">호버 4조건 충족 — 거리·드론속도·목표속도·yaw. <code>pub_hover_p()</code> 후 리플랜 중단.</div></div>
+        <div class="row"><div class="code s-warn">−2</div><div class="nm">생성 실패</div><div class="ds">예측·A*·회랑·최적화 중 하나가 실패. 아래 분기로 흘러갑니다.</div></div>
+        <div class="row"><div class="code s-ok">0</div><div class="nm">REPLAN SUCCESS</div><div class="ds">새 궤적이 충돌 검사 통과. 발행하고 <code>force_hover_ = false</code>.</div></div>
+        <div class="row"><div class="code s-warn">1</div><div class="nm">FAILED, HOVERING</div><div class="ds">새 궤적 실패 + 이미 <code>force_hover_</code> 상태. 아무것도 하지 않습니다.</div></div>
+        <div class="row"><div class="code s-bad">2</div><div class="nm">EMERGENCY STOP</div><div class="ds">새 궤적 실패 + 이전 궤적도 무효. <code>force_hover_ = true</code>, 현재 위치에 호버.</div></div>
+        <div class="row"><div class="code s-warn">3</div><div class="nm">EXECUTE LAST TRAJ</div><div class="ds">새 궤적 실패 + 이전 궤적은 유효. 이전 궤적을 계속 실행.</div></div>
+      </div>
+      <p class="cap">
+        <code>force_hover_ = true</code>가 되면 단계 0에서 <code>|v| &gt; 0.1</code>인 동안 리플랜 자체를 건너뜁니다 —
+        드론이 완전히 멈춘 뒤에야 다시 계획을 시도합니다.
+      </p>
+
+      <div class="note">
+        <span class="lbl">확인된 이슈</span>
+        추적 콜백의 상태 2 / 3 분기 조건이 페이크 콜백과 <b>부호가 반대</b>입니다.
+        <span class="src">planning_nodelet.cpp:415</span>는 <code>else if (validcheck(...))</code>,
+        <span class="src">:598</span>은 <code>else if (!validcheck(...))</code>. 자세한 내용은 §12.
+      </div>
+
+      <h3>호버 조건 네 가지</h3>
+<pre><span class="cm">// planning_nodelet.cpp:218-220 — 모두 참일 때만 호버</span>
+| |Δp| - tracking_dist |    &lt; tolerance_d     <span class="cm">// 0.3 m</span>
+|v_drone|                   &lt; 0.1
+|v_target|                  &lt; 0.2
+|yaw_desired - yaw_now|     &lt; 0.5             <span class="cm">// rad</span></pre>
+      <p>
+        yaw 조건이 들어 있는 것이 특징입니다. 위치가 맞아도 <b>카메라가 목표물을 향하지 않으면 호버하지 않고</b>
+        계속 계획합니다 — 가시성 중심 설계가 상태 판정에까지 반영된 부분입니다.
+      </p>
+    </section>
+
+    <!-- ============ 11 ============ -->
+    <section id="params">
+      <h2><span class="n">11</span>파라미터</h2>
+      <p class="sec-note">planning.launch · mapping.launch</p>
+
+      <h3>플래너</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>이름</th><th class="num">값</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td class="name">plan_hz</td><td class="num">20</td><td class="desc">리플랜 주기 — 50 ms 예산</td></tr>
+            <tr><td class="name">K</td><td class="num">8</td><td class="desc">궤적 조각당 적분 샘플 수</td></tr>
+            <tr><td class="name">vmax / amax</td><td class="num">3.0 / 6.0</td><td class="desc">동역학 한계 <span class="u">m/s, m/s²</span></td></tr>
+            <tr><td class="name">rhoT</td><td class="num">100</td><td class="desc">시간 연장 벌점</td></tr>
+            <tr><td class="name">rhoP</td><td class="num">10000</td><td class="desc">회랑 위배 — 가장 무거움</td></tr>
+            <tr><td class="name">rhoV / rhoA</td><td class="num">1000</td><td class="desc">속도 / 가속도 위배</td></tr>
+            <tr><td class="name">rhoTracking</td><td class="num">1000</td><td class="desc">추적 거리 유지</td></tr>
+            <tr><td class="name">rhosVisibility</td><td class="num">10000</td><td class="desc">가시성 — <b>비교 실험에서 0으로 끕니다</b></td></tr>
+            <tr><td class="name">theta_clearance</td><td class="num">0.8</td><td class="desc">부채꼴 여유각 <span class="u">rad ≈ 46°</span></td></tr>
+            <tr><td class="name">clearance_d</td><td class="num">0.2</td><td class="desc">회랑 안쪽 여유 <span class="u">m</span></td></tr>
+            <tr><td class="name">tolerance_d</td><td class="num">0.3</td><td class="desc">추적 거리 허용 오차 <span class="u">m</span></td></tr>
+            <tr><td class="name">tracking_dist</td><td class="num">2.5</td><td class="desc">목표 추적 거리 <span class="u">m</span></td></tr>
+            <tr><td class="name">tracking_dur</td><td class="num">3.0</td><td class="desc">예측·궤적 시간 지평 <span class="u">s</span></td></tr>
+            <tr><td class="name">tracking_dt</td><td class="num">0.2</td><td class="desc">예측 샘플 간격 <span class="u">s</span> → 16개 점</td></tr>
+            <tr><td class="name">prediction/rho_a</td><td class="num">1.0</td><td class="desc">예측의 가속 비용</td></tr>
+            <tr><td class="name">prediction/vmax</td><td class="num">4.0</td><td class="desc">예측 속도 한계 <span class="u">m/s</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <span class="lbl">비교 실험</span>
+        <code>simulation2.launch</code>는 <code>drone0</code>에 <code>rhosVisibility=10000</code>,
+        <code>drone1</code>에 <code>0</code>을 주고 두 대가 <b>같은 목표물</b>을 동시에 추적하게 합니다.
+        가시성 항 하나만의 차이를 나란히 관찰하는 구성 — 논문 그림의 비교 실험이 이것입니다.
+      </div>
+
+      <h3>매핑</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>이름</th><th class="num">값</th><th>의미</th></tr></thead>
+          <tbody>
+            <tr><td class="name">resolution</td><td class="num">0.15</td><td class="desc">격자 해상도 <span class="u">m</span></td></tr>
+            <tr><td class="name">local_x / y / z</td><td class="num">20 / 20 / 5</td><td class="desc">로컬 맵 <span class="u">m</span> — 2의 거듭제곱으로 내림 → 128×128×32셀</td></tr>
+            <tr><td class="name">inflate_size</td><td class="num">1</td><td class="desc">인플레이션 반경 <span class="u">셀</span></td></tr>
+            <tr><td class="name">down_sample_factor</td><td class="num">2</td><td class="desc">깊이 픽셀 다운샘플</td></tr>
+            <tr><td class="name">depth_filter_tolerance</td><td class="num">0.15</td><td class="desc">재투영 깊이 불일치 임계 <span class="u">m</span></td></tr>
+            <tr><td class="name">camera_range</td><td class="num">7.0</td><td class="desc">센서 유효 거리 <span class="u">m</span> (실기 D435는 6.0)</td></tr>
+            <tr><td class="name">p_min / p_max</td><td class="num">−199 / 220</td><td class="desc">로그오드 하한·상한 <span class="u">≈ 0.12 / 0.90</span></td></tr>
+            <tr><td class="name">p_hit / p_mis</td><td class="num">62 / 62</td><td class="desc">관측 갱신량 <span class="u">≈ 0.65 / 0.35</span></td></tr>
+            <tr><td class="name">p_occ</td><td class="num">139</td><td class="desc">점유 판정 임계 <span class="u">≈ 0.80</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 12 ============ -->
+    <section id="findings">
+      <h2><span class="n">12</span>코드 이슈</h2>
+      <p class="sec-note">원본 코드를 읽어 확인 · 심각도 순 · 이 분석에서 코드를 수정하지는 않았습니다</p>
+
+      <div class="finding">
+        <div class="fh">
+          <span class="chip c-hi">경계 초과</span>
+          <h4>노드 풀 경계 검사 없음</h4>
+          <span class="loc">env.hpp:66</span>
+        </div>
+        <p>
+          <code>visit()</code>가 <code>data_[visited_nodes_.size()]</code>를 경계 검사 없이 인덱싱합니다.
+          루프 가드는 <code>size &lt; MAX_MEMORY</code>지만, <b>본문 안에서 이웃 6개에 대해
+          <code>visit()</code>가 최대 6번</b> 호출되므로 크기가 가드를 넘어설 수 있습니다.
+        </p>
+<pre>size == MAX_MEMORY - 1 에서 루프 진입 (가드 통과)
+  1번째 이웃 → data_[MAX_MEMORY - 1]   <b>✔</b> size = MAX_MEMORY
+  2번째 이웃 → <span class="hl">data_[MAX_MEMORY]</span>       <b>✘</b> 배열 밖
+  ⋮
+  6번째 이웃 → <span class="hl">data_[MAX_MEMORY + 4]</span>   <b>✘</b></pre>
+        <p>
+          최대 5개까지 범위 밖을 읽고 그 쓰레기 포인터에 <code>ptr-&gt;idx = idx</code>를 씁니다.
+          루프 하단의 <code>if (size == MAX_MEMORY) cout &lt;&lt; "out of memory"</code>는
+          <b>출력만 하고 <code>break</code>하지 않습니다</b> — 다음 반복의 가드가 잡지만 초과 접근은 이미 끝난 뒤입니다.
+          세 A* 함수가 모두 같은 <code>visit()</code>를 공유합니다.
+        </p>
+      </div>
+
+      <div class="finding">
+        <div class="fh">
+          <span class="chip c-hi">안전 로직</span>
+          <h4>추적 모드 EMERGENCY STOP 조건 반전</h4>
+          <span class="loc">planning_nodelet.cpp:415</span>
+        </div>
+        <p>
+          같은 로직이 두 콜백에 있는데 부호가 다릅니다. 추적 쪽은 <code>else if (validcheck(traj_poly_, replan_stamp_))</code>,
+          페이크 쪽(<code>:598</code>)은 <code>else if (!validcheck(...))</code>. 의미상 맞는 것은 페이크 쪽입니다 —
+          <b>이전 궤적이 무효일 때</b> 비상 정지해야 합니다.
+        </p>
+        <p>
+          현재 추적 콜백은 이전 궤적이 <em>유효</em>할 때 비상 정지하고, <em>무효</em>할 때
+          "EXECUTE LAST TRAJ" 로그를 남기며 그 궤적을 계속 실행합니다. 새 궤적 생성이 실패했는데
+          이전 궤적이 이미 장애물을 관통하는 경우가 정확히 이 분기입니다.
+          20 Hz 중 대부분의 사이클이 성공하기 때문에 드러나기 어렵지만, 안전 로직의 최후 방어선입니다.
+        </p>
+      </div>
+
+      <div class="finding">
+        <div class="fh">
+          <span class="chip c-md">누수</span>
+          <h4>최적화 실패 시 x_ 해제 누락</h4>
+          <span class="loc">traj_opt.cc:365, :416</span>
+        </div>
+        <p>
+          <code>x_ = new double[dim_p_ + dim_t_ + 1]</code> 이후 L-BFGS가 음수를 반환하면
+          <code>delete[] x_</code> 없이 <code>return false</code>합니다. 성공 경로에만 해제가 있습니다.
+          <code>generate_traj</code> 오버로드 두 개(추적·착륙)에 같은 패턴이 있습니다.
+        </p>
+        <p>
+          한 번의 누수량은 수백 바이트지만 <b>20 Hz 루프에서 최적화 실패가 지속되면 누적</b>됩니다.
+          <code>extractVs</code> 실패 경로는 할당 이전이라 무해합니다.
+          <code>std::vector&lt;double&gt;</code>로 바꾸면 근본 해결됩니다.
+        </p>
+      </div>
+
+      <div class="finding">
+        <div class="fh">
+          <span class="chip c-md">실시간성</span>
+          <h4>A* 시간 예산이 실제로는 발동하지 않음</h4>
+          <span class="loc">env.hpp:454–458</span>
+        </div>
+<pre>double <b>t_cost</b> = (ros::Time::now() - t_start_).toSec();   <span class="cm">// 루프 진입 전 1회만</span>
+while (visited_nodes_.size() &lt; MAX_MEMORY &amp;&amp; <b>t_cost</b> &lt;= MAX_DURATION) {
+  ...                                    <span class="cm">// 본문 어디에서도 t_cost 갱신 없음</span>
+}</pre>
+        <p>
+          <code>t_cost</code>가 루프 조건에 있지만 본문에서 갱신되지 않습니다. 한 번의 A*는 일단 시작하면
+          0.2초와 무관하게 <b>메모리를 다 쓰거나 <code>open_set</code>이 빌 때까지</b> 돕니다.
+        </p>
+        <p>
+          완전히 무의미하지는 않습니다. <code>t_start_</code>는 바깥 <code>findVisiblePath</code>에서 한 번만 찍히고
+          체인의 각 A*가 진입 시 <code>t_cost</code>를 새로 계산하므로 <b>16회 호출 사이사이에는 검사가 걸립니다.</b>
+          최악의 경우는 "16 × 0.2초"가 아니라 <b>"0.2초 + 단일 A*의 최대 소요 시간"</b>입니다.
+          50 ms 예산을 지키려면 루프 안에서 주기적으로 다시 재야 합니다.
+        </p>
+      </div>
+
+      <div class="finding">
+        <div class="fh">
+          <span class="chip c-md">축 혼동</span>
+          <h4>링버퍼 이동 시 z축 크기 오류</h4>
+          <span class="loc">mapping.cc:26</span>
+        </div>
+<pre>from[i]       = move[i] + size_xyz[i];              <span class="cm">// ✔ 축별 크기</span>
+from_small[i] = move[i] + <span class="hl">size_x</span> - inflate_size;    <span class="cm">// ✘ 항상 x축 크기</span>
+to[i]         = size_xyz[i];                        <span class="cm">// ✔</span>
+to_small[i]   = size_xyz[i] - inflate_size;         <span class="cm">// ✔</span></pre>
+        <p>
+          같은 블록의 나머지 세 줄은 모두 <code>size_xyz[i]</code>를 쓰므로 오타로 보입니다.
+          기본 격자가 <code>128 × 128 × 32</code>이라 <b>x·y축은 우연히 맞고 z축만 틀립니다</b> — 96만큼 과대.
+        </p>
+        <p>
+          영향받는 것은 로그오드 확률 버퍼 <code>pro</code>를 <code>p_def</code>로 초기화하는 루프입니다.
+          드론이 <b>아래로 이동</b>할 때 <code>from_small.z() &gt; to_small.z()</code>가 되어 루프가 아예 돌지 않고,
+          새로 들어온 z 슬래브에 이전 위치의 확률값이 남습니다. <code>infocc</code>를 지우는 루프는
+          <code>from</code>/<code>to</code>를 쓰므로 정상 — 즉 <em>표시되는</em> 격자는 맞지만 그 아래 확률 상태에 유령 값이 남습니다.
+          수정은 한 단어입니다.
+        </p>
+      </div>
+
+      <div class="finding">
+        <div class="fh">
+          <span class="chip c-md">논리 오류</span>
+          <h4>generateSFC의 current_poly 오참조</h4>
+          <span class="loc">env.hpp:336–343</span>
+        </div>
+        <p>
+          수축 여부 판정이 루프 변수 <code>hPolys[i]</code>가 아니라 직전 루프에서 남은
+          <code>current_poly</code>(마지막 다면체)를 검사합니다. 게다가 그 사이에
+          <code>filterCorridor(hPolys)</code>가 실행되어 <code>hPolys</code>의 내용이 바뀌었으므로,
+          <code>current_poly</code>는 어떤 원소와도 대응이 보장되지 않습니다.
+        </p>
+        <p>
+          결과적으로 조건이 <b>모든 <code>i</code>에 대해 동일하게</b> 평가됩니다 — 전부 수축하거나, 전부 수축하지 않거나.
+          다행히 바로 아래 연결성 보정 루프가 교집합 소멸이라는 최악의 경우는 막아 줍니다.
+        </p>
+      </div>
+
+      <div class="finding">
+        <div class="fh">
+          <span class="chip c-md">미정의 동작</span>
+          <h4>초기화되지 않은 반환 플래그</h4>
+          <span class="loc">traj_opt.cc:634, :675</span>
+        </div>
+        <p>
+          <code>grad_cost_p_tracking</code>과 <code>grad_cost_p_landing</code>이 <code>bool ret;</code>을
+          초기화 없이 선언합니다. 세 위배 조건이 모두 거짓이면 — <b>추적 거리와 고도가 모두 정상 범위일 때</b> —
+          초기화되지 않은 값을 반환합니다.
+        </p>
+        <p>
+          실제 영향은 제한적입니다. <code>costp</code>와 <code>gradp</code>는 0으로 초기화되어 있어
+          <code>ret</code>이 우연히 참이 되어도 <code>addTimeCost</code>가 0을 더할 뿐입니다.
+          다만 같은 파일의 <code>grad_cost_v</code>, <code>grad_cost_a</code>, <code>grad_cost_visibility</code>는
+          모두 명시적으로 <code>return false</code>합니다 — 이 두 함수만 패턴이 다릅니다.
+        </p>
+      </div>
+
+      <div class="finding">
+        <div class="fh">
+          <span class="chip c-lo">가독성</span>
+          <h4>착륙 호버 판정의 fabs 오용</h4>
+          <span class="loc">planning_nodelet.cpp:199</span>
+        </div>
+        <p>
+          <code>std::fabs((target_p - odom_p).norm() &lt; 0.1 &amp;&amp; ... )</code> — 괄호가 안쪽을 전부 감싸
+          <code>fabs</code>의 인자가 <code>bool</code>입니다. <code>fabs(true) = 1.0</code>이고 <code>if</code>가 이를
+          다시 참/거짓으로 해석하므로 <b>결과적으로는 의도대로 동작합니다</b>.
+          <code>norm()</code>은 항상 음이 아니므로 <code>fabs</code> 자체가 불필요합니다.
+        </p>
+      </div>
+
+      <div class="finding">
+        <div class="fh">
+          <span class="chip c-lo">비활성 경로</span>
+          <h4>EKF FOV 검사의 width / height 교차</h4>
+          <span class="loc">target_ekf_sim_node.cpp:80–88</span>
+        </div>
+        <p>
+          가로 픽셀 <code>x</code>를 <code>height_</code>(480)와, 세로 픽셀 <code>y</code>를 <code>width_</code>(640)와
+          비교합니다. 가로는 480까지만 허용되고(우측 160픽셀 손실) 세로는 사실상 무제한이 됩니다.
+        </p>
+        <p>
+          <code>check_fov=true</code>일 때만 실행되는데, 저장소의 launch 파일은
+          <code>simulation_landing.launch</code>에서 명시적으로 <code>false</code>를 주고 나머지는 설정하지 않아
+          기본값 <code>false</code>를 씁니다 — <b>기본 시나리오에서는 이 코드가 실행되지 않습니다.</b>
+        </p>
+      </div>
+
+      <h3>중복 코드</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>대상</th><th>상태</th></tr></thead>
+          <tbody>
+            <tr><td class="name">L-BFGS 두 벌</td><td class="desc"><code>traj_opt/lbfgs_raw.hpp</code>와 <code>prediction/lbfgs.hpp</code>가 <b>바이트 단위로 동일</b>(md5 <code>6ebd64df…</code>). 후자를 include하는 곳이 저장소에 없어 <b>완전히 죽은 파일</b></td></tr>
+            <tr><td class="name">A* 세 벌</td><td class="desc">람다 두 개만 다르고 본체 60여 행 동일 — 템플릿 하나로 통합 가능</td></tr>
+            <tr><td class="name">checkRayValid 두 벌</td><td class="desc"><code>env.hpp:94</code>(거리 제한)와 <code>:128</code>(무제한) — 전자를 <code>max_dist=∞</code>로 호출하면 대체 가능</td></tr>
+            <tr><td class="name">EKF 두 벌</td><td class="desc">헤더의 9상태 <code>Ekf</code>와 <code>target_ekf_node.cpp:21</code>에 인라인된 6상태 <code>Ekf</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ 13 ============ -->
+    <section id="run">
+      <h2><span class="n">13</span>빌드와 실행</h2>
+      <p class="sec-note">ROS1 Melodic / Noetic · catkin</p>
+
+      <h3>가장 먼저 확인할 것: CUDA</h3>
+      <p>
+        README가 첫 줄에서 경고하는 항목입니다. <code>src/uav_simulator/local_sensing/CMakeLists.txt</code>의
+        두 곳을 봐야 합니다.
+      </p>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>위치</th><th>기본값</th><th>맞지 않으면</th></tr></thead>
+          <tbody>
+            <tr><td class="name">:6 ENABLE_CUDA</td><td><code>true</code></td><td class="desc"><code>false</code>로 두면 <code>pointcloud_render_node</code>가 빌드되는데, 이건 <code>Image</code>가 아니라 <code>PointCloud2</code>를 발행하므로 <b><code>mapping</code>의 깊이 파이프라인이 입력을 못 받습니다</b></td></tr>
+            <tr><td class="name">:19 arch</td><td><code>compute_61</code> <span class="u">Pascal 고정</span></td><td class="desc">빌드는 되지만 런타임에 커널이 안 돌아 <b>깊이 영상이 전부 0</b>. Turing 75, Ampere 86, Ada 89로 바꿔야 합니다</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>네 가지 시나리오</h3>
+<pre>roslaunch mapping rviz_sim.launch            <span class="cm">// 전부 공통 — 먼저 RViz</span>
+
+<b>① 기본 추적</b>
+roslaunch planning fake_target.launch        <span class="cm">// mockamap + 목표물 드론</span>
+roslaunch planning simulation1.launch        <span class="cm">// drone0 스택 전체</span>
+./sh_utils/pub_triger.sh                     <span class="cm">// /triger 발행</span>
+
+<b>② 가시성 유무 비교</b>
+roslaunch planning fake_target.launch
+roslaunch planning simulation2.launch        <span class="cm">// drone0: ρ_vis=10000, drone1: 0</span>
+./sh_utils/pub_triger.sh                     <span class="cm">// 둘 다 같은 /triger로 시작</span>
+
+<b>③ 차량 착륙</b>
+roslaunch planning fake_car_target.launch    <span class="cm">// init_z=0.8, car.dae</span>
+roslaunch planning simulation_landing.launch <span class="cm">// EKF check_fov=false</span>
+./sh_utils/pub_triger.sh                     <span class="cm">// 먼저 추적 단계</span>
+./sh_utils/land_triger.sh                    <span class="cm">// 그다음 착륙 전환</span>
+
+<b>④ 로그 재생</b>
+roslaunch planning debug.launch              <span class="cm">// debug/replan_state.bin 필요 (저장소에 없음)</span></pre>
+
+      <p>
+        목표물 드론은 RViz의 <b>2D Nav Goal</b>로 조종합니다 —
+        <code>fake_target.launch</code>가 <code>~triger</code>를 <code>/move_base_simple/goal</code>로 리맵하기 때문입니다.
+        <code>pub_triger.sh</code>가 발행하는 <code>/triger</code>는 추적 드론을 깨웁니다.
+      </p>
+
+      <h3>진단</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>증상 / 로그</th><th>원인</th><th>대응</th></tr></thead>
+          <tbody>
+            <tr><td class="name">아무 반응 없음</td><td class="desc">플래너가 조용히 return</td><td class="desc"><code>/triger</code>, <code>/target_ekf_odom</code>, <code>gridmap_inflate</code>를 <code>rostopic hz</code>로 순서대로 확인</td></tr>
+            <tr><td class="name">[env] no way!</td><td class="desc">A* 실패</td><td class="desc"><code>tracking_dist</code> 축소 또는 <code>inflate_size</code> 하향</td></tr>
+            <tr><td class="name">search costs more than 0.2s</td><td class="desc">A* 예산 초과</td><td class="desc"><code>MAX_DURATION</code>(<code>env.hpp:52</code>) 조정, 맵 해상도 하향</td></tr>
+            <tr><td class="name">[prediction] too slow!</td><td class="desc">예측 100 ms 초과</td><td class="desc"><code>tracking_dur</code> 축소, <code>prediction/vmax</code> 조정</td></tr>
+            <tr><td class="name">extractVs fail!</td><td class="desc">다면체 꼭짓점 열거 실패</td><td class="desc">회랑 퇴화 — <code>bbox_width</code> 상향</td></tr>
+            <tr><td class="name">ret: −xxx</td><td class="desc">L-BFGS 실패</td><td class="desc">가중치 균형 확인 — 특히 <code>rhoP</code>가 다른 항 대비 과대한 경우</td></tr>
+            <tr><td class="name">Lost heartbeat</td><td class="desc">한 사이클이 0.5초 초과</td><td class="desc">위 예산 항목들을 먼저 확인</td></tr>
+            <tr><td class="name">/depth 전부 0</td><td class="desc">GPU 아키텍처 불일치</td><td class="desc"><code>CMakeLists.txt:19</code>의 <code>compute_XX</code> 수정</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>실기 배포 시 달라지는 것</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th></th><th>시뮬레이션</th><th>실기</th></tr></thead>
+          <tbody>
+            <tr><td class="name">상태 추정</td><td class="desc"><code>so3_quadrotor</code> odom</td><td class="desc">VINS-Fusion 또는 <code>/ekf/ekf_odom</code></td></tr>
+            <tr><td class="name">깊이</td><td class="desc"><code>pcl_render_node</code> (CUDA)</td><td class="desc">RealSense D435</td></tr>
+            <tr><td class="name">목표물 검출</td><td class="desc">실제 odom <code>/target/odom</code></td><td class="desc">YOLOv5-TRT 바운딩박스</td></tr>
+            <tr><td class="name">제어</td><td class="desc"><code>so3_controller</code> + <code>so3_quadrotor</code></td><td class="desc">PX4 — <b>이 저장소에 없음</b></td></tr>
+            <tr><td class="name">마스킹</td><td class="desc">꺼짐</td><td class="desc"><code>use_mask=true</code> — 목표물 자체를 장애물로 안 잡게</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <span class="lbl">실기 EKF의 가정</span>
+        <code>target_ekf_node</code>는 바운딩박스 높이로 깊이를 추정하며
+        <b>목표물 높이를 0.7 m로 하드코딩</b>합니다 (<code>depth = 0.7 / height * fy</code>).
+        다른 크기의 목표물을 쓰려면 이 상수를 바꿔야 합니다.
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<button class="totop" id="totop" aria-label="맨 위로">↑</button>
+<button type="button" class="sidebtn side-show" id="sideShow" aria-controls="toc-nav" aria-expanded="false" hidden>
+  <span class="ic" aria-hidden="true">&#9656;</span>목차</button>
+
+<footer>
+  <div class="wrap">
+    Elastic Tracker — Jialin Ji, Neng Pan, Chao Xu, Fei Gao · ZJU FAST Lab · IEEE ICRA 2022 ·
+    <a href="https://arxiv.org/abs/2109.07111">arXiv:2109.07111</a><br>
+    MINCO 궤적 표현은 <a href="https://github.com/ZJU-FAST-Lab/GCOPTER">GCOPTER</a>,
+    안전 회랑 생성은 <a href="https://github.com/sikang/DecompROS">DecompROS</a>를 사용합니다. 저장소 라이선스 GPL-3.0.<br>
+    <br>
+    이 페이지는 저장소의 소스 코드만을 근거로 작성했으며, 인용한 파일·행 번호로 원문과 대조할 수 있습니다.
+    더 자세한 내용은 저장소의 <code>docs/01-overview.md</code> … <code>docs/08-zju-fast-lab-family.md</code>를 보세요.<br>
+    <br>
+    수식은 브라우저 네이티브 MathML로 조판했고, 도해와 차트는 인라인 SVG입니다 — 외부 라이브러리를 쓰지 않습니다.
+  </div>
+</footer>
+
+<script>
+"use strict";
+const SVGNS = "http://www.w3.org/2000/svg";
+const el = (n, a) => { const e = document.createElementNS(SVGNS, n);
+  for (const k in a) e.setAttribute(k, a[k]); return e; };
+const fmt = (v, d) => (v < 0 ? "−" : "") + Math.abs(v).toFixed(d);
+
+/* ================= 1. 시간 파라미터화 위젯 ================= */
+(function () {
+  const svg = document.getElementById("tt-svg");
+  if (!svg) return;
+  const g = document.getElementById("tt-bars");
+  const S = { d: "tt-d", t0: "tt-t0", t1: "tt-t1", t2: "tt-t2" };
+  const inp = {}; for (const k in S) inp[k] = document.getElementById(S[k]);
+  const out = { d: document.getElementById("tt-do"), t0: document.getElementById("tt-t0o"),
+                t1: document.getElementById("tt-t1o"), t2: document.getElementById("tt-t2o") };
+  const TS = 3.0, X0 = 30, MAXW = 560, MAXS = 6.0, PX = MAXW / MAXS, BY = 42, BH = 34;
+
+  const expC2 = t => t > 0 ? (0.5 * t + 1) * t + 1 : 1 / ((0.5 * t - 1) * t + 1);
+
+  function draw() {
+    const d = +inp.d.value, ts = [+inp.t0.value, +inp.t1.value, +inp.t2.value];
+    const sumT = TS + d * d;
+    const e = ts.map(expC2), Se = e[0] + e[1] + e[2];
+    const T = e.map(v => sumT * v / (1 + Se));
+    T.push(sumT / (1 + Se));
+
+    out.d.textContent = fmt(d, 2);
+    out.t0.textContent = fmt(ts[0], 2);
+    out.t1.textContent = fmt(ts[1], 2);
+    out.t2.textContent = fmt(ts[2], 2);
+
+    while (g.firstChild) g.removeChild(g.firstChild);
+
+    // ruler
+    for (let s = 0; s <= 6; s++) {
+      const x = X0 + s * PX;
+      g.appendChild(el("line", { x1: x, y1: 96, x2: x, y2: 102,
+        stroke: "var(--ink-3)", "stroke-width": 1 }));
+      const tx = el("text", { x: x, y: 116, "text-anchor": "middle",
+        "font-family": "IBM Plex Mono, monospace", "font-size": 10, fill: "var(--ink-3)" });
+      tx.textContent = s + "s"; g.appendChild(tx);
+    }
+    g.appendChild(el("line", { x1: X0, y1: 99, x2: X0 + MAXW, y2: 99,
+      stroke: "var(--rule)", "stroke-width": 1 }));
+
+    // hard floor at T_s
+    const fx = X0 + TS * PX;
+    g.appendChild(el("line", { x1: fx, y1: 20, x2: fx, y2: 92,
+      stroke: "var(--occupied)", "stroke-width": 1.4, "stroke-dasharray": "4 3" }));
+    const fl = el("text", { x: fx + 6, y: 30, "font-family": "IBM Plex Mono, monospace",
+      "font-size": 10.5, fill: "var(--occupied)" });
+    fl.textContent = "Tₛ = 3.0 s 하한"; g.appendChild(fl);
+
+    // stacked segments
+    let x = X0;
+    T.forEach((t, i) => {
+      const w = Math.max(t * PX - 2, 1);
+      g.appendChild(el("rect", { x: x, y: BY, width: w, height: BH, rx: 2,
+        fill: "var(--accent)", "fill-opacity": i % 2 ? 0.55 : 0.85 }));
+      if (w > 30) {
+        const lb = el("text", { x: x + w / 2, y: BY + 21, "text-anchor": "middle",
+          "font-family": "IBM Plex Mono, monospace", "font-size": 11, fill: "var(--surface)" });
+        lb.textContent = "T" + "₁₂₃₄"[i]; g.appendChild(lb);
+      }
+      const vv = el("text", { x: x + w / 2, y: BY - 7, "text-anchor": "middle",
+        "font-family": "IBM Plex Mono, monospace", "font-size": 9.5, fill: "var(--ink-3)" });
+      vv.textContent = t.toFixed(2); if (w > 24) g.appendChild(vv);
+      x += w + 2;
+    });
+
+    document.getElementById("tt-sum").textContent = sumT.toFixed(2) + " s";
+    const chk = document.getElementById("tt-chk");
+    const total = T.reduce((a, b) => a + b, 0);
+    chk.textContent = total.toFixed(2) + " s";
+    chk.className = "v " + (Math.abs(total - sumT) < 1e-9 ? "ok" : "bad");
+    const mn = document.getElementById("tt-min");
+    const mv = Math.min.apply(null, T);
+    mn.textContent = mv.toFixed(2) + " s";
+    mn.className = "v " + (mv > 0 ? "ok" : "bad");
+    document.getElementById("tt-pen").textContent = (100 * d * d).toFixed(1);
+  }
+  for (const k in inp) inp[k].addEventListener("input", draw);
+  draw();
+})();
+
+/* ================= 2. 가시성 페널티 위젯 ================= */
+(function () {
+  const svg = document.getElementById("vf-svg");
+  if (!svg) return;
+  const CX = 330, CY = 190, RPX = 120, D_M = 2.5, PXM = RPX / D_M;
+  const THETA = Math.PI / 3;              // 부채꼴 반각 60°, 그림에 고정
+  const RHO_VIS = 10000, RHO_TRK = 1000, TOL = 0.3, EPS = 0.05;
+
+  const iPhi = document.getElementById("vf-phi");
+  const iR   = document.getElementById("vf-r");
+  const iTc  = document.getElementById("vf-tc");
+  const P = a => [CX + RPX * Math.cos(a * Math.PI / 180), CY - RPX * Math.sin(a * Math.PI / 180)];
+
+  const penF = x => x < 2 * EPS
+    ? (4 / (EPS * EPS)) * x * x * x - (x * x * x * x) / (EPS * EPS * EPS)
+    : 16 * (x - EPS);
+
+  function draw() {
+    const phi = +iPhi.value, rm = +iR.value, tc = +iTc.value;
+    const rpx = rm * PXM;
+    const dx = CX + rpx * Math.cos(phi * Math.PI / 180);
+    const dy = CY - rpx * Math.sin(phi * Math.PI / 180);
+
+    iPhi.nextElementSibling.textContent = phi.toFixed(0) + "°";
+    iR.nextElementSibling.textContent = rm.toFixed(2) + " m";
+    iTc.nextElementSibling.textContent = tc.toFixed(2) + " rad";
+
+    // inner allowed cone
+    const tl = Math.max(THETA - tc, 0), tlDeg = tl * 180 / Math.PI;
+    const inner = document.getElementById("vf-inner");
+    if (tlDeg < 0.4) {
+      inner.setAttribute("d", "M " + CX + " " + CY + " L 210 190 Z");
+      inner.setAttribute("stroke-width", "2.2");
+    } else {
+      const a1 = P(180 - tlDeg), a2 = P(180 + tlDeg);
+      inner.setAttribute("d", "M " + CX + " " + CY + " L " + a1[0].toFixed(1) + " " + a1[1].toFixed(1) +
+        " A " + RPX + " " + RPX + " 0 " + (2 * tlDeg > 180 ? 1 : 0) + " 0 " +
+        a2[0].toFixed(1) + " " + a2[1].toFixed(1) + " Z");
+      inner.setAttribute("stroke-width", "1");
+    }
+
+    // vector a + drone
+    document.getElementById("vf-ray").setAttribute("x2", dx.toFixed(1));
+    document.getElementById("vf-ray").setAttribute("y2", dy.toFixed(1));
+    ["vf-drone", "vf-halo"].forEach(id => {
+      const n = document.getElementById(id);
+      n.setAttribute("cx", dx.toFixed(1)); n.setAttribute("cy", dy.toFixed(1));
+    });
+    const av = document.getElementById("vf-avec");
+    av.setAttribute("x", (CX + (dx - CX) * 0.55 + 6).toFixed(1));
+    av.setAttribute("y", (CY + (dy - CY) * 0.55 - 6).toFixed(1));
+
+    // angle between a and b (b points at 180°)
+    let ang = Math.abs(phi - 180); if (ang > 180) ang = 360 - ang;
+    const angRad = ang * Math.PI / 180;
+    const lo = Math.min(180, phi), hi = Math.max(180, phi);
+    const arc = document.getElementById("vf-arc");
+    if (ang < 0.6) { arc.setAttribute("d", ""); }
+    else {
+      const r2 = 52, p1 = [CX + r2 * Math.cos(lo * Math.PI / 180), CY - r2 * Math.sin(lo * Math.PI / 180)],
+            p2 = [CX + r2 * Math.cos(hi * Math.PI / 180), CY - r2 * Math.sin(hi * Math.PI / 180)];
+      arc.setAttribute("d", "M " + p1[0].toFixed(1) + " " + p1[1].toFixed(1) +
+        " A " + r2 + " " + r2 + " 0 " + (ang > 180 ? 1 : 0) + " 0 " + p2[0].toFixed(1) + " " + p2[1].toFixed(1));
+    }
+    const mid = (lo + hi) / 2, al = document.getElementById("vf-alab");
+    al.setAttribute("x", (CX + 64 * Math.cos(mid * Math.PI / 180) - 5).toFixed(1));
+    al.setAttribute("y", (CY - 64 * Math.sin(mid * Math.PI / 180) + 4).toFixed(1));
+    al.textContent = ang > 3 ? "∠" : "";
+
+    // visibility penalty
+    const pen = Math.cos(tl) - Math.cos(angRad);
+    const vcost = pen > 0 ? RHO_VIS * pen * pen * pen : 0;
+
+    // tracking penalty
+    const dr2 = rm * rm, up = (D_M + TOL) * (D_M + TOL), lw = (D_M - TOL) * (D_M - TOL);
+    let tcost = 0;
+    if (dr2 > up) tcost = RHO_TRK * penF(dr2 - up);
+    else if (dr2 < lw) { const q = lw - dr2; tcost = RHO_TRK * q * q * q; }
+
+    document.getElementById("vf-ang").textContent = ang.toFixed(1) + "°";
+    document.getElementById("vf-tl").textContent = tlDeg.toFixed(1) + "°";
+    const pn = document.getElementById("vf-pen");
+    pn.textContent = fmt(pen, 3); pn.className = "v " + (pen > 0 ? "bad" : "ok");
+    const cs = document.getElementById("vf-cost");
+    cs.textContent = vcost > 0 ? vcost.toFixed(0) : "0";
+    cs.className = "v " + (vcost > 0 ? "bad" : "ok");
+    const tk = document.getElementById("vf-track");
+    tk.textContent = tcost > 0 ? tcost.toFixed(0) : "0";
+    tk.className = "v " + (tcost > 0 ? "bad" : "ok");
+
+    const flag = document.getElementById("vf-flag");
+    if (vcost > 0 && tcost > 0) {
+      flag.textContent = "가시성 + 추적 모두 위배";
+      flag.setAttribute("fill", "var(--occupied)");
+    } else if (vcost > 0) {
+      flag.textContent = "가시성 위배 — pen = " + fmt(pen, 3);
+      flag.setAttribute("fill", "var(--occupied)");
+    } else if (tcost > 0) {
+      flag.textContent = "추적 거리 위배 — ‖a‖ = " + rm.toFixed(2) + " m";
+      flag.setAttribute("fill", "var(--unknown)");
+    } else {
+      flag.textContent = "제약 만족 — 비용 0";
+      flag.setAttribute("fill", "var(--free)");
+    }
+  }
+
+  [iPhi, iR, iTc].forEach(i => i.addEventListener("input", draw));
+
+  // pointer drag
+  let dragging = false;
+  const toSvg = ev => {
+    const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  };
+  const move = ev => {
+    if (!dragging) return;
+    const p = toSvg(ev), vx = p.x - CX, vy = CY - p.y;
+    let a = Math.atan2(vy, vx) * 180 / Math.PI; if (a < 0) a += 360;
+    const rm = Math.hypot(vx, vy) / PXM;
+    iPhi.value = Math.min(300, Math.max(60, a));
+    iR.value = Math.min(4.2, Math.max(0.9, rm));
+    draw(); ev.preventDefault();
+  };
+  ["vf-halo", "vf-drone"].forEach(id => {
+    document.getElementById(id).addEventListener("pointerdown", ev => {
+      dragging = true; ev.target.setPointerCapture(ev.pointerId); ev.preventDefault();
+    });
+  });
+  svg.addEventListener("pointermove", move);
+  svg.addEventListener("pointerup", () => { dragging = false; });
+  svg.addEventListener("pointercancel", () => { dragging = false; });
+  draw();
+})();
+
+/* ================= 3. 페널티 함수 차트 ================= */
+(function () {
+  const EPS = 0.05, X_MAX = 3;
+  const penF  = x => x < 2 * EPS ? (4 / (EPS * EPS)) * x ** 3 - x ** 4 / EPS ** 3 : 16 * (x - EPS);
+  const penFg = x => x < 2 * EPS ? (12 / (EPS * EPS)) * x * x - (4 / EPS ** 3) * x ** 3 : 16;
+  const cub = x => x ** 3, cubg = x => 3 * x * x;
+
+  const L = 46, R = 292, T = 20, B = 158;   // plot area
+
+  function build(id, title, f1, f2, yMax, yTicks, lab1, lab2) {
+    const svg = document.getElementById(id);
+    if (!svg) return;
+    const sx = x => L + (x / X_MAX) * (R - L);
+    const sy = y => B - (y / yMax) * (B - T);
+
+    const ttl = el("text", { x: L - 4, y: 12, "font-family": "IBM Plex Mono, monospace",
+      "font-size": 10.5, "letter-spacing": ".08em", fill: "var(--ink-3)" });
+    ttl.textContent = title; svg.appendChild(ttl);
+
+    yTicks.forEach(v => {
+      svg.appendChild(el("line", { x1: L, y1: sy(v), x2: R, y2: sy(v),
+        stroke: "var(--rule-soft)", "stroke-width": 1 }));
+      const t = el("text", { x: L - 7, y: sy(v) + 3.5, "text-anchor": "end",
+        "font-family": "IBM Plex Mono, monospace", "font-size": 9.5, fill: "var(--ink-3)" });
+      t.textContent = v; svg.appendChild(t);
+    });
+    for (let x = 0; x <= X_MAX; x++) {
+      const t = el("text", { x: sx(x), y: B + 15, "text-anchor": "middle",
+        "font-family": "IBM Plex Mono, monospace", "font-size": 9.5, fill: "var(--ink-3)" });
+      t.textContent = x; svg.appendChild(t);
+    }
+    const ax = el("text", { x: (L + R) / 2, y: B + 32, "text-anchor": "middle",
+      "font-family": "IBM Plex Mono, monospace", "font-size": 9.5, fill: "var(--ink-3)" });
+    ax.textContent = "위배량 pen"; svg.appendChild(ax);
+    svg.appendChild(el("line", { x1: L, y1: B, x2: R, y2: B, stroke: "var(--rule)", "stroke-width": 1 }));
+
+    const path = f => {
+      let d = "", n = 240;
+      for (let i = 0; i <= n; i++) {
+        const x = X_MAX * i / n, y = Math.min(f(x), yMax * 1.02);
+        d += (i ? "L" : "M") + sx(x).toFixed(2) + " " + sy(y).toFixed(2) + " ";
+      }
+      return d;
+    };
+    svg.appendChild(el("path", { d: path(f2), fill: "none", stroke: "var(--chart-2)",
+      "stroke-width": 2, "stroke-linejoin": "round" }));
+    svg.appendChild(el("path", { d: path(f1), fill: "none", stroke: "var(--chart-1)",
+      "stroke-width": 2, "stroke-linejoin": "round" }));
+
+    // direct end labels
+    const mk = (f, col, txt, dyv) => {
+      const y = Math.min(f(X_MAX), yMax);
+      const t = el("text", { x: R - 2, y: sy(y) + dyv, "text-anchor": "end",
+        "font-family": "IBM Plex Mono, monospace", "font-size": 10, "font-weight": 600, fill: col });
+      t.textContent = txt; svg.appendChild(t);
+    };
+    mk(f1, "var(--chart-1)", lab1, -7);
+    mk(f2, "var(--chart-2)", lab2, 14);
+
+    // crosshair
+    const cg = el("g", { opacity: 0 });
+    const cl = el("line", { y1: T, y2: B, stroke: "var(--ink-3)", "stroke-width": 1, "stroke-dasharray": "3 3" });
+    const d1 = el("circle", { r: 3.5, fill: "var(--chart-1)", stroke: "var(--surface)", "stroke-width": 2 });
+    const d2 = el("circle", { r: 3.5, fill: "var(--chart-2)", stroke: "var(--surface)", "stroke-width": 2 });
+    const rd = el("text", { x: L, y: T - 6, "font-family": "IBM Plex Mono, monospace",
+      "font-size": 10, fill: "var(--ink-2)" });
+    cg.appendChild(cl); cg.appendChild(d1); cg.appendChild(d2); cg.appendChild(rd);
+    svg.appendChild(cg);
+
+    const hit = el("rect", { x: L, y: T, width: R - L, height: B - T, fill: "transparent",
+      style: "cursor:crosshair" });
+    svg.appendChild(hit);
+    const pt = svg.createSVGPoint();
+    hit.addEventListener("pointermove", ev => {
+      pt.x = ev.clientX; pt.y = ev.clientY;
+      const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+      const x = Math.max(0, Math.min(X_MAX, (p.x - L) / (R - L) * X_MAX));
+      cg.setAttribute("opacity", 1);
+      cl.setAttribute("x1", sx(x)); cl.setAttribute("x2", sx(x));
+      d1.setAttribute("cx", sx(x)); d1.setAttribute("cy", sy(Math.min(f1(x), yMax)));
+      d2.setAttribute("cx", sx(x)); d2.setAttribute("cy", sy(Math.min(f2(x), yMax)));
+      rd.textContent = "pen " + x.toFixed(2) + "  ·  " + f1(x).toFixed(1) + "  ·  " + f2(x).toFixed(1);
+    });
+    hit.addEventListener("pointerleave", () => cg.setAttribute("opacity", 0));
+  }
+
+  build("ch-val",  "비용",        penF,  cub,  48, [0, 16, 32, 48], "47.2", "27.0");
+  build("ch-grad", "그래디언트", penFg, cubg, 28, [0, 8, 16, 24], "16 포화", "27.0");
+})();
+</script>
+
+<script>
+/* ============ 스크롤 스파이 · 진행바 · 맨 위로 ============ */
+(function () {
+  const secs = Array.from(document.querySelectorAll("main section[id]"));
+  const links = Array.from(document.querySelectorAll("nav.toc a"));
+  const bar = document.getElementById("progbar");
+  const top = document.getElementById("totop");
+  if (!secs.length) return;
+
+  function spy() {
+    let best = null, bestD = Infinity;
+    for (const s of secs) {
+      const t = s.getBoundingClientRect().top;
+      if (t <= 120 && t > -s.offsetHeight && Math.abs(t) < bestD) { bestD = Math.abs(t); best = s; }
+    }
+    if (!best) for (const s of secs) { if (s.getBoundingClientRect().top > 0) { best = s; break; } }
+    links.forEach(a => a.classList.toggle("on", best && a.getAttribute("href") === "#" + best.id));
+  }
+  function prog() {
+    const h = document.documentElement, max = h.scrollHeight - h.clientHeight;
+    if (bar) bar.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  function tt() { if (top) top.classList.toggle("show", scrollY > 600); }
+  if (top) top.addEventListener("click", () => scrollTo({
+    top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+
+  let tick = false;
+  addEventListener("scroll", () => {
+    if (tick) return; tick = true;
+    requestAnimationFrame(() => { spy(); prog(); tt(); tick = false; });
+  }, { passive: true });
+  addEventListener("resize", prog, { passive: true });
+  spy(); prog(); tt();
+})();
+</script>
+
+<script>
+/* ============ 목차 보이기 / 숨기기 ============ */
+(function () {
+  const hide = document.getElementById("sideHide");
+  const show = document.getElementById("sideShow");
+  if (!hide || !show) return;
+
+  function set(off, remember) {
+    document.body.classList.toggle("side-off", off);
+    show.hidden = !off;
+    hide.setAttribute("aria-expanded", String(!off));
+    show.setAttribute("aria-expanded", String(!off));
+    if (remember) { try { localStorage.setItem("et-side-off", off ? "1" : "0"); } catch (e) {} }
+  }
+  let pref = "0";
+  try { pref = localStorage.getItem("et-side-off") || "0"; } catch (e) {}
+  set(pref === "1", false);
+
+  hide.addEventListener("click", () => { set(true, true); show.focus(); });
+  show.addEventListener("click", () => { set(false, true); hide.focus(); });
+})();
+</script>
