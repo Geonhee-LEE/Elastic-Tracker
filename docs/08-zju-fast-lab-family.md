@@ -1174,7 +1174,7 @@ MINCO는 **부드러움을 최소화하고 시간에 벌점**을, CPC는 **시�
 다섯 저장소가 풀지 않은 두 방향 — **움직이는 장애물**과 **제대로 된 3D 지각** — 은 다른 연구실들이
 각자 따로 밀어 왔습니다. 두 흐름은 오랫동안 평행선이었고, **2022년 이후에야 조금씩 만나기 시작했습니다.**
 HTML 판(`lineage.html` 13절)에는 2019–2026 연표가 있습니다. 조사 시점은 2026-09이며, 대괄호 번호는
-[8.16 참고문헌](#816-참고문헌)의 항목입니다.
+[8.17 참고문헌](#817-참고문헌)의 항목입니다.
 
 표기 — **ZJU** = ZJU FAST Lab 공저 · **MINCO** = MINCO 사용이 확인됨 · **코드** = 공개 저장소 확인 ·
 **확인 안 됨** = 이번 조사에서 확인하지 못함
@@ -1371,7 +1371,217 @@ Elastic-Tracker 원본 · Eva-Tracker · Swarm-Tracker · SANDO(충돌 회피만
 
 ---
 
-## 8.15 이 문서의 근거와 한계
+## 8.15 다른 로봇 분야 — 레이싱카 · 모바일 · 사족 · 휴머노이드
+
+8.13·8.14는 드론 안의 이야기였습니다. 같은 질문 — 어떤 방식을 쓰고, 무엇이 대세이고, 어디로 가는가 — 를
+다섯 분야에 던지면 답이 크게 갈립니다. **레이싱카만 여전히 "최적화 + MPC"가 스택의 중심**이고, 사족·휴머노이드는
+저수준이 강화학습으로 넘어갔으며, 모바일 로봇은 그래프 탐색 + 샘플링 MPC, 도로 자율주행은 대형 학습 모델 + 검증층입니다.
+궤적 최적화는 사라지지 않았습니다 — **자리가 바뀌었습니다.** 스택 전체를 맡던 주 플래너에서, 참조와 교사를 만드는 생성기,
+안전을 확인하는 검증층, 그리고 추종 제어기로.
+
+HTML 판(`lineage.html` 15절)에는 색으로 구분한 매트릭스와 MINCO–학습 결합 구조 도해가 있습니다.
+조사 시점은 2026-09-11이며, 대괄호 번호는 [8.17 참고문헌](#817-참고문헌)의 항목입니다.
+
+### 한눈에 — 분야 × 방식
+
+**대세** = 배치·우승·기본값에서 주류로 확인 · 정착 = 널리 쓰이지만 중심은 아님 · 부상 = 증거가 빠르게 늘지만 배치는 제한적 ·
+축소 = 자리를 내주는 중 · 소수 = 일부 연구·사례 · 없음 = 이번 조사에서 증거 없음
+
+| 방식 계열 | 드론 (참고) | 레이싱카 | 모바일 로봇 | 도로 자율주행 | 사족보행 | 휴머노이드 |
+|---|---|---|---|---|---|---|
+| 모델 기반 제어 (MPC · WBC · LQR · 추종) | **대세** | **대세** | **대세** | **대세** | 축소 | 정착 |
+| **궤적 최적화 — 이 계보** (TO · NMPC · MINCO) | **대세** | **대세** | 정착 | 정착 | 정착 | 정착 |
+| 탐색·샘플링 계획 (그래프 · Frenet · MAPF) | 정착 | **대세** | **대세** | 정착 | 정착 | 축소 |
+| 샘플링 MPC (MPPI · DIAL-MPC) | 소수 | 부상 | 정착 | 없음 | 소수 | 부상 |
+| 강화학습 sim-to-real (저수준) | 부상 | 부상 | 부상 | 부상 | **대세** | **대세** |
+| 모방학습 · 모션 트래킹 | 소수 | 소수 | 부상 | **대세** | 소수 | **대세** |
+| 종단간 · 학습형 플래너 | 부상 | 소수 | 부상 | **대세** | 부상 | 부상 |
+| 파운데이션 모델 · VLA | 소수 | 없음 | 부상 | 부상 | 부상 | 부상 |
+| 월드 모델 · 생성 모델 | 소수 | 소수 | 소수 | 부상 | 소수 | 부상 |
+
+**궤적 최적화 줄에서 대세는 드론과 레이싱카 두 칸뿐입니다.** 나머지 넷은 "정착" — 쓰이지만 스택의 중심은 아닙니다.
+반대로 강화학습 줄의 대세는 다리 달린 두 분야입니다. 상태는 학계와 산업 증거를 합친 판단이라, 같은 칸 안에서도 학계는
+활발한데 배치가 없는 경우가 많습니다.
+
+### 분야별 — 방식 · 대세 · 다음
+
+#### 자율주행 레이싱카 — 궤적 최적화: 스택의 중심
+
+- **쓰는 방식** — 트랙을 미리 알기 때문에 가장 무거운 최적화를 **오프라인**으로 뺍니다. 최소곡률 QP나 최소시간 최적제어
+  (직접 콜로케이션 + IPOPT)로 레이스라인을 만들고, 주행 중에는 Frenet 좌표에서 다항식 후보를 샘플링해 타당성 검사로 고른 뒤
+  Tube·LPV-MPC, LQR, Pure Pursuit로 따라갑니다. 상태 추정은 다중 센서 EKF [R12].
+- **대세** — 스택을 공개한 상위 팀 — TUM(A2RL 2024 우승 스택) [R1], TII Unimore [R2], KAIST [R10], ForzaETH [R4] — 이
+  **모두 같은 모듈형**입니다. F1TENTH 벤치마크도 "최적화 + 추종이 가장 빠르다"고 정리합니다 [R5]. 다만 IAC 최다 우승팀
+  PoliMOVE와 Cavalier는 스택을 공개하지 않아 "이길수록 MPC"라고는 말할 수 없습니다. RL이 제품에 들어간 공개 사례는
+  심 레이싱의 GT Sophy(GT7, 2023)가 대표적입니다 [R7].
+- **다음** — 단독 → 4대(CES 2025) → **6대 동시 결승**(A2RL 2025) [R11]으로 바뀌면서 게임이론 요소가 샘플링 플래너의
+  비용·가이던스로 들어오는 중입니다(시뮬레이션 단계) [R8]. 잔차 RL [R6]과 학습 동역학은 MPC를 보정하는 형태이고,
+  월드 모델 에이전트는 실차 256 km/h 시험까지 나왔지만 대회 사용은 확인되지 않았습니다 [R9]. IU 팀은 제어기를
+  PP → 선형 MPC → MPPI로 바꿔 왔습니다 [R3].
+
+#### 모바일 로봇 — 궤적 최적화: 학계에 머묾
+
+- **쓰는 방식** — 위치 추정 → 레이어드 코스트맵 → **그래프 탐색 전역 계획**(NavFn, Smac Hybrid-A*·State Lattice [N2]) →
+  20–50 Hz 로컬 컨트롤러(MPPI · RPP · DWB · Graceful). 창고에서는 로봇 한 대보다 **플릿 교통관리**(Lifelong MAPF,
+  중앙 배차)가 처리량을 좌우합니다.
+- **대세** — Nav2 기본 로컬 컨트롤러가 Humble의 DWB에서 Jazzy 이후 **MPPI**로 바뀌었습니다 [N1] — 예제 기본값이 곧
+  양산 채택은 아니고 벤더 알고리즘은 대부분 비공개입니다. 창고 MAPF 대회의 우승 해법과 기본 계획기는 모두 탐색 기반
+  (PIBT·LNS 계열) [N8][N9]. BARN에서는 2024년 행동복제 팀이 처음 실물 우승했지만 상위 팀 모두 규칙 기반 상태기계를
+  섞었고 [N3], 2025년에는 학습형 팀이 결선 우승을 잇지 못했습니다 [N13].
+- **다음** — 계층형 스택 유지 + MPPI 기능 강화, 학습·VLM 모듈은 코스트맵 층이나 critic으로 흡수될 가능성이 큽니다.
+  플릿은 **탐색 코어 + 학습 유도·할당**(1만 대 규모 [N7]). 내비 파운데이션 모델(NoMaD [N5] · NavDP [N4] · NaVILA [N6])은
+  대부분 프리프린트·시뮬레이션 평가이고, Amazon DeepFleet의 10% 개선은 회사 주장입니다 [N10]. 오프로드(DARPA RACER)는
+  계획·제어층을 공개하지 않았습니다 [N11].
+
+#### 도로 자율주행 — 궤적 최적화: 검증 · 후처리로
+
+- **쓰는 방식** — 오픈소스 기준선은 규칙 기반 결정 + Frenet DP/QP(Apollo)나 MPT(Autoware) + MPC·PP 추종. 학계는 nuPlan에서
+  **규칙 기반 PDM-Closed가 우승**한 뒤(2023) [A1] 학습 플래너 → 쿼리 기반 종단간 → **여러 후보를 만들어 점수로 고르는**
+  구조(DiffusionDrive [A3] · GTRS [A2])로 옮겨 갔습니다.
+- **대세** — NAVSIM 공식 챌린지 3회가 모두 "후보 생성 + 스코어링" 계열 우승. 양산 ADAS는 단일 종단간 네트워크를 내세우고
+  (Tesla FSD v12, XPeng VLA 2.0 [A13]), 로보택시는 **대형 학습 모델 + 명시적 검증층**입니다 — Waymo는 교사 파운데이션 모델을
+  증류한 온보드 모델의 궤적을 독립 검증층이 물리 hard 제약과 교통법규로 점검한다고 밝혔고 [A6][A7], Mercedes CLA의
+  NVIDIA DRIVE AV는 "종단간 + 병렬 고전 안전 스택"입니다 [A8]. Autoware도 Diffusion Planner 노드를 규칙 기반 구성요소와
+  나란히 둡니다 [A9].
+- **다음** — VLM·VLA + RL 후학습(2025 Waymo 종단간 챌린지 1위 [A4])과 대규모 closed-loop RL [A5]이 넓어지고, 추론 시점의
+  언어 단계를 없애는 흐름도 있습니다 [A13]. NAVSIM 점수 산정 결함과 closed-loop 순위 역전이 보고되어 평가 자체가
+  쟁점입니다 [A10]. 궤적 최적화와 MPC는 **실현가능성 투영 · 제약 검증 · 추종**으로 남을 가능성이 큽니다.
+
+#### 사족보행 — 궤적 최적화: 발디딤 · 참조 · 교사 데이터로
+
+- **쓰는 방식** — 2018–2022년에는 convex MPC + 전신 제어(MIT Cheetah), 지각 NMPC [Q8], TAMOLS 같은 모델 기반 최적제어가
+  **보행 제어기 그 자체**였습니다. 2019년 이후 GPU 병렬 시뮬레이션의 PPO · 도메인 랜덤화 · teacher-student 증류로 학습한
+  **sim-to-real RL**이 표준이 되었습니다 [Q1][Q2].
+- **대세** — ANYbotics는 2023년 RL 보행을 전 운용 로봇에 배포했다고 밝혔고(자사 발표) [Q3], Boston Dynamics는 Spot에서
+  **병렬 MPC 지평 평가를 RL 정책으로 대신하고 MPC는 유지**하는 형태로 업데이트를 배포했습니다 [Q4]. 공개된 산업 구조는
+  "RL 보행 + (선택적) 모델 기반 층 + 기하·의미 내비"입니다.
+- **다음** — **하이브리드**가 가장 근거가 강합니다: TO 발디딤 참조 + RL 추종(DTC [Q5]), 샘플링 발디딤 + RL 추종(KAIST [Q6]),
+  TO 궤적 18만 개로 사전학습한 뒤 RL(KAIST APT-RL [K4]), 바퀴-다리 로봇의 계층형 RL 내비 [Q9]. 샘플링 MPC(DIAL-MPC [Q7])는
+  학습 없는 대안이지만 실기 검증이 적은 신흥 단계입니다. 파운데이션 모델은 보행보다 상위 내비·점검에 먼저 들어왔습니다 [Q10].
+
+#### 휴머노이드 — 궤적 최적화: 보상 · 참조 · 데이터 생성기
+
+- **쓰는 방식** — 고전 스택은 ZMP·LIPM·DCM 발자국 계획 + centroidal·전신 MPC + 1 kHz QP 전신 제어. 2023–24년 GPU 병렬 PPO
+  sim-to-real이 기본값이 되었고 [H1], 2024–25년에는 **인간 모캡을 리타게팅해 따라가는 전신 제어**(ASAP [H6] 등), 2025–26년에는
+  행동 파운데이션 모델(SONIC [H5]), 지각 기반 전신 파쿠르 [H10], System 2/1/0 VLA 계층이 부상했습니다.
+- **대세** — 공개 기술 발표가 있는 기업은 모두 **보행 저수준을 시뮬레이션 RL로** 옮겼습니다 — Figure(Helix 02의 System 0이
+  수작업 C++ 109,504줄 대체 [H2][H11]), Agility(작은 LSTM이 IK·ID 대체 [H3]), NVIDIA GR00T(하체 RL + 상체 IK [H12]).
+  예외는 BD로, 450M 파라미터 LBM이 **MPC 기반 인터페이스 위에서** 30 Hz로 돕니다 [H4]. Tesla · 1X · Apptronik · UBTech은
+  비공개이고, 학계 신규 논문 다수는 Unitree G1에서 검증됩니다.
+- **다음** — 모션 추적을 키운 범용 저수준 제어기가 속도 명령 보행을 흡수할 가능성이 높고, **VLA–전신 제어기 인터페이스**
+  (기저 속도 · 발·손 자세 · 모션 토큰)가 경쟁 지점입니다. MPC·TO는 보상·참조·데이터 생성(AMO [H8] · MPC 가이드 RL [H9])과
+  상위 계획 쪽으로 가고, 저차 모델 MPC 연구도 이어집니다 [H7]. 대회는 원격조종에 페널티를 주고 완전 자율을 요구하는 쪽으로
+  바뀌고 있습니다 [H13][H14].
+
+### 분야를 가로지르는 흐름
+
+| 흐름 | 무슨 일이 일어나는가 | 분야 |
+|---|---|---|
+| 저수준 제어는 RL로 | GPU 병렬 시뮬레이션(Isaac Lab [C1] · MuJoCo Playground [C2]) + PPO + 증류가 다리 로봇과 드론 레이싱의 기본값. RL은 더 나은 목적함수를 최적화한다는 분석 [C3]. 인프라는 Newton·MuJoCo Warp로 모이는 중 [C8][C13]. 풀스케일 레이싱카·도로는 예외 | 사족 · 휴머노이드 · 드론 |
+| 궤적 최적화의 자리 이동 | 주 플래너 → 참조·교사 생성기(DTC [Q5]), 안전·검증층(Waymo [A7] · SUPER의 MINCO 백업 궤적 [G1]), 추종 제어기(BD Atlas [H4]). 레이싱카만 예외 | 전 분야 |
+| 해 하나 → 병렬 후보 + 평가 | Frenet 샘플링, MPPI critic 롤아웃 [N12], 샘플링 발디딤, DIAL-MPC [Q7], NAVSIM 우승 스코어러 [A2]. GPU 병렬성과 비미분 비용이 공통 동인. 확산과 MPPI의 이론적 연결 [C10] | 도로 · 모바일 · 레이싱 · 다리 |
+| 파운데이션 모델은 위층으로 | 확산·flow 행동 헤드(Diffusion Policy [C4] · π0 [C5])를 단 VLA가 서브골·중간 명령을 맡고, 실시간 균형·회피는 하위 제어기에 — Helix 02 [H2], GR00T N1.6 [H12], LBM [H4], NaVILA [N6], DriveVLM [A12]. 산업 표준은 아직 아님 | 휴머노이드 · 모바일 · 사족 · 도로 |
+| 월드 모델은 시뮬레이터·평가기로 먼저 | Waymo World Model [A11] · Cosmos [C7] · Veo 정책 평가 [C6]. 계획에 쓰는 연구(DreamerV3 [C12] · NWM [N15])는 늘지만 실시간 루프의 월드 모델 MPC 배치 사례는 없음 | 도로 · 휴머노이드 · 모바일 |
+| 데이터·embodiment 스케일링 | 모캡 prior [H5], 절차 생성 embodiment [C11], 다중 플랫폼 내비 데이터 [N14], 계획 모델 멱법칙 [A14]. 교차 embodiment 산업 배치 증거는 없음 | 휴머노이드 · 사족 · 모바일 · 도로 |
+| 인증이 층을 가른다 | 학습이 안전 기능을 맡으면 인증 비용이 급증 → "학습은 성능층, 결정론 로직은 안전층" [P1][P3] | 모바일 · 휴머노이드 · 도로 |
+| 평가의 현실화 | open → closed-loop(점수 신뢰성 논란 [A10]), 단독 → 6대 결승 [R11], 처리량 → 실행 지연 [N9], 원격조종 → 완전 자율 의무 [H14] | 도로 · 레이싱 · 모바일 · 휴머노이드 |
+
+### 보이지 않던 층 — 인증 · 원격 지원 · 산업 현장
+
+**인증 · 규제.** 학습 정책이 안전 기능을 맡는 순간 제3자 인증과 고장률 논증이 필요해져 비용이 급증합니다. 그래서 산업은
+학습을 성능층에 두고, 안전 스캐너 보호필드 · 안전 PLC · 속도·분리 감시 같은 등급화된 결정론 안전층을 경계로 세웁니다.
+EU 기계류 규정 2023/1230(2027-01-20 적용)은 AI 기반 안전 기능을 가진 기계를 새로 규율하고 [P1][P2], 자율주행은 UL 4600
+safety case로 학습 요소를 논증해 받아들입니다 [P3]. 학계의 안전 필터 [C9]도 인증 전에는 안전층이 아니며, 이족 휴머노이드는
+동력을 끊으면 넘어지는 **fail-passive gap**이 남아 있습니다 [P4][P5].
+→ 페널티 기반 MINCO는 보장이 없어 인증 논증에서는 약점입니다(추론).
+
+**원격 지원 · 오프보드 계획.** Waymo는 동시 근무 원격 지원 요원 약 70명이 차량 3,000대에 **조언만** 하고(조향·제동 안 함,
+차량이 거부 가능, 편도 지연 중앙값 약 150 ms) [P6][P7], 로보택시 7개 기업 모두 원격 지원 빈도를 공개하지 않았으며
+원격 운전을 허용하는 곳은 Tesla뿐입니다 [P9]. 캘리포니아는 2026-04 원격 운전자·보조원 기준을 도입했습니다 [P18].
+NTSB가 조사 중인 2026-01 사건에서는 원격 요원의 답이 계획기 판단에 들어가 스쿨버스를 지나쳤습니다(원인 미판정) [P8].
+퍼서비어런스는 주행의 90% 이상을 온보드 ENav로 달리고 [P12][P13], 2025-12에는 Claude가 궤도 영상·경사 자료로 경유점을
+만들어 디지털 트윈 검증 뒤 210 m·246 m를 달렸습니다 — 경유점 사이는 온보드 AutoNav가 맡았습니다 [P10][P11].
+→ 파운데이션 모델은 "전략적 경유점"을, 실시간 루프는 보수적 온보드 실행기가 쥡니다.
+
+**산업 현장.** Komatsu 초대형 자율 트럭 누적 1,000대(2026-04) [P14], EACON 3,500대 이상(2026-08, 자사 발표) [P15],
+Aurora 무인 화물 노선 10개(2026-02) [P16], Deere 자율 트랙터의 카메라 16대 + 신경망 약 100 ms 판정 [P17].
+경로계획 알고리즘은 공개하지 않습니다. 공통점은 제한된 운행 영역, 중앙 관제·원격 지원, 중복 설계, 외부 감사 safety case —
+**학습을 가드레일 안에 가둔 하이브리드**입니다.
+
+### 한국에서는
+
+다리 로봇 연구의 **하이브리드 성향**, 그리고 실외 배송 로봇에서 **인증이 설계를 이끈다**는 점이 두드러집니다.
+
+| 연구실 | 대표 성과 | 방식 |
+|---|---|---|
+| KAIST 황보제민 (RaiSim · Raibo) | 변형 지형 보행 [K1] · 이산 지형 고속 주행 [Q6] · RAIBO2 풀코스 마라톤 완주(2024-11) [K7] | RL — 액추에이터·지형 모델 주입, 샘플링 발디딤 + RL 추종 |
+| KAIST 박해원 (HOUND · MARVEL) | 자석 발 벽 등반 [K2] · Contact-Implicit MPC [K3] · APT-RL [K4] | MPC와 RL 병행 — 최근엔 궤적 최적화를 RL의 교사로 |
+| KAIST 명현 | DreamWaQ [K5] · DreamWaQ++ [K6] · ICRA 2023 사족 로봇 대회 우승 | 고유수용·외수용 융합 RL |
+| 서울대 박재흥 (TOCABI) | 토크 기반 이족 RL [K8] | 토크 제어 전통 + RL |
+
+RAIBO2 마라톤은 자율 내비게이션이 아니라 보행 내구성 실증입니다(자율 주행은 후속 과제). 레인보우로보틱스 RBQ는 동역학 기반
+보행과 AI 보행을 결합·전환한다고 밝히고 [K23], Boston Dynamics(현대차그룹 소유)는 Spot이 MPC + RL, Atlas가 MPC 위의 LBM입니다
+[Q4][H4][K22]. 휴머노이드 산업은 대부분 발표·실증 단계이고, 정부는 K-휴머노이드 연합(2025-04) [K9]과 KIST 주관 504억 원 과제
+(2026–2030) [K10]를 진행 중입니다.
+
+실외 배송 로봇은 2023-11 법 개정으로 **운행안전인증 + 보험**을 갖춘 실외이동로봇이 보도를 다닐 수 있게 되면서 시작됐습니다 [K11].
+인증 단위는 **로봇 + 관제장치 한 묶음**, 심사 항목은 규격·운행속도 · 겉모양 · 동적 특성 · 주변 인식 · 비상정지 · 방수 ·
+횡단보도 통행 · 관제장치 8개입니다(2025-11 개정으로 16 → 8개, 심사기간 60 → 30일) [K13]. 개정 전 기준으로 최고속도는 질량에
+연동됐습니다 — 100 kg 이하 15 km/h, 100–230 kg 10 km/h, 230 kg 초과 5 km/h [K14]. KIRIA 등록은 2026-09-11 기준 22개 모델 ·
+10개 기업입니다 [K12].
+
+| 기업 | 인증 모델 | 공개된 스택 | 규모 |
+|---|---:|---|---|
+| 뉴빌리티 | 6 | 카메라 5대 · 라이다 없음 · 딥러닝 3D 인지 [K25] | 2025년 말 305대(실내외) [K17] |
+| 로보티즈 | 5 | 1호 인증 · 5세대에 3D 라이다 첫 탑재(2026 하반기 예정) [K18] | 약 200대, 2026년까지 약 2,000대 목표 [K24] |
+| 우아한형제들 (딜리) | 3 | 3D 점군지도 SLAM · 모션 플래닝은 최적화 기반 + 학습 기반(종류 비공개) [K16] | 주행거리 99% 이상 무개입(회사 발표) |
+| 현대자동차 | 1 | MobED Pro 조건부 인증(횡단보도 통행 불가, 가시거리 내 운행) [K20] · 신호 연계 횡단 실증 [K19] | 제한구역 운용 전제 |
+| 네이버랩스 | 1 | 실외 인증 Lungo · 1784 클라우드 로봇 인프라 [K26] | 비공개 |
+
+**로컬 플래너 알고리즘은 어느 기업도 공개하지 않았습니다.** 인증 조건을 보면 계획 문제의 핵심은 민첩성이 아니라 규칙을 지키기 위한
+이산 결정, 보행자 근접 시 감속·정지, 신호 시간창, 원격 개입입니다(분석). 규모는 국내 최대 운영사가 수백 대, 미국 Serve Robotics가
+2,000대 이상입니다 [K21]. 연구 쪽에서는 KAIST LiCS가 BARN 2024를 행동복제로 우승했습니다 [K15].
+
+### MINCO 계보에 주는 의미
+
+다섯 분야를 합치면, 경사 기반 궤적 최적화는 **스택 전체를 맡는 주 플래너**에서 **명시적 제약과 안전을 책임지는 층**으로
+좁혀지고 있습니다. 밀려난 것은 아닙니다 — 제약 만족과 설명 가능성이 필요한 곳에서는 여전히 핵심입니다.
+
+| | 어디서 |
+|---|---|
+| 자리가 남은 곳 | 미지 환경 고속 비행(SUPER [G1]) · 가시성·거리 제약이 명시적인 표적 추적 · 레이싱 레이스라인과 시간최적 재계획 · 차동·차량형 지상 로봇(학계, DDR-opt [5]) · 다리 로봇의 참조·데이터 생성 · 도로의 실현가능성 검증 |
+| 학습에 내준 곳 | 다리 로봇의 저수준 보행 · 드론 레이싱의 극한 비행 · 양산 ADAS의 행동 선택과 궤적 생성 |
+| 경쟁자가 다른 곳 | 산업 지상 로봇 — 상대는 학습이 아니라 **샘플링 MPC**(비미분 코스트맵·학습 비용을 그대로 씀) [N1][N12] |
+| 맞지 않는 곳 | 불연속 접촉 · 이산 발디딤 · 전신 토크 제약 — 한국 최신 연구도 RL이나 contact-implicit MPC를 택함 [K3][K4] |
+
+MINCO가 학습과 결합하는 구조는 셋으로 나눌 수 있습니다(분류는 이 조사의 해석).
+
+1. **생성 + 최적화 보증** — 학습 생성기(확산 · VLA · RL 정책) → 후보·참조 → **MINCO**(투영 · 백업 궤적 · 검증) → 추종 제어기.
+   예: SUPER의 백업 궤적 [G1], 구조가 같은 예로 Waymo 검증층 [A6].
+2. **최적화 교사 + 학습 실행** — **MINCO · 궤적 최적화**(참조 · 대량 궤적) → 학습 정책(증류 · 모방 · RL 미세조정) → 로봇.
+   예: DTC [Q5] · APT-RL [K4] · YOPO 개선판의 MINCO 표현 [L3].
+3. **3층** — 학습 상위층(예측 · 모드 · 경유점, 150 ms–수 초 늦게 비동기로) → **MINCO 20 Hz**(재계획 · 사후 검증) → MPC · RL 추종.
+   구조가 같은 예: 퍼서비어런스 AI 계획 주행 [P10]. 8.14 로드맵이 키우는 층입니다.
+
+이 자리에 들어가려면 MINCO 쪽에 네 가지가 더 필요합니다.
+
+- **입력 인터페이스** — 외부 경유점·통로, 제약 가중치, 의미 라벨을 받는 경로. 원격·파운데이션 모델 힌트는 늦게 비동기로 도착합니다 [P7][P10].
+- **보증의 빈칸 메우기** — GCOPTER는 통로 제약을 사상으로 정확히 없애지만 연속시간 동역학 제약은 샘플 지점 페널티입니다
+  ([8.1](#81-배경--minco란-무엇인가)의 ③). 사후 검증기와 최소위험기동 fallback이 필요합니다 — ENav의 보수적 충돌 검사가 예입니다 [P13].
+- **비미분 비용과 국소해** — GPU 병렬 다중 초기화, 학습 prior, 샘플링 롤아웃 + 경사 정제 [C10].
+- **비홀로노믹 · 접촉 시스템** — Frenet·yaw-호길이 매개화와 하위 추종기를 함께 설계.
+
+> **8.14와의 연결** — 8.14 로드맵은 3층 구조의 가운데 층을 드론 추적에서 키우는 작업으로 읽을 수 있습니다.
+> **표적 추적 드론에서 학습 방식이 MINCO를 대체했다는 직접 증거는 2026-09 기준으로 찾지 못했습니다.** 이 연결은 해석입니다.
+
+> **읽을 때 주의** — "대세"는 공개된 사례에 한정한 판단입니다. PoliMOVE · Cavalier, Tesla Optimus · 1X, 광산 OEM, 중국 사족 OEM,
+> 국내 배송 로봇 기업은 계획·제어 알고리즘을 공개하지 않았습니다. 기업 수치는 회사 발표이고, 2026년 arXiv 논문 다수는 심사 전
+> 프리프린트입니다. IAC Laguna Seca(2026-09-03)·A2RL Imola(2026-09-05) 결과는 조사 시점에 공식 페이지에 없었고, 창고 MAPF 대회
+> 2026 결과는 2026-11에 나옵니다.
+
+---
+
+## 8.16 이 문서의 근거와 한계
 
 **깊이가 균일하지 않습니다.** 정직하게 밝힐 부분입니다.
 
@@ -1404,9 +1614,14 @@ Elastic-Tracker에서 실제로 코드를 읽고 나서야 발견한 결함이 9
 ([07. 코드 리딩 노트](07-code-notes.md)) 참고로 덧붙입니다. 나머지 넷에도
 README만으로는 보이지 않는 것들이 있을 가능성이 높습니다.
 
+**8.15절도 근거의 종류가 다릅니다.** 코드를 읽은 것이 아니라 문헌과 공개 자료를 조사한 것입니다 — 여섯 분야를 하나씩 조사하고,
+분야마다 인용 12건 이상을 다시 열어 "대세" 주장에 반증을 시도했으며(정정 · 확인 불가 · 과장 86건 반영), 빠진 주제 5건을 보완했습니다.
+새 참고문헌 122개 가운데 118개가 정상 응답했습니다, 3개(K1·K2·Q3)는 봇 차단(403·429)으로 막혔지만 브라우저에서는 열리는 페이지입니다, 1개(K21)는 응답이 없었습니다. 뉴스로만 확인한 항목은 참고문헌에 *(헤드라인)*으로 표시했습니다.
+조사 후반에는 웹 검색 한도가 소진되어 공식 페이지를 직접 여는 방식으로만 확인했습니다. 조사 시점은 2026-09-11입니다.
+
 ---
 
-## 8.16 참고문헌
+## 8.17 참고문헌
 
 ### 이 다섯 저장소
 
@@ -1536,3 +1751,152 @@ README만으로는 보이지 않는 것들이 있을 가능성이 높습니다.
 > 서지와 요지를 확인했고 **코드는 실행하지 않았습니다.** [X3]의 MINCO 사용과 방송 궤적 가림 처리, [V4]의 구 열 FOV와
 > "pseudo-3D" 지적, [V11]의 소속은 본문까지 확인했습니다. [V10]은 서지만 확인했고, [S4]는 저자를,
 > [V6]는 저널명을(TII/TIE로 출처가 엇갈림) 확정하지 못했습니다. [D8]·[X2]·[L4]는 저자 일부만 확인해 "외"로 적었습니다.
+
+### 자율주행 레이싱카 ([8.15](#815-다른-로봇-분야--레이싱카--모바일--사족--휴머노이드))
+
+- **[R1]** Hoffmann, Sagmeister 외 (TUM Autonomous Motorsport), **"Head-to-Head autonomous racing at the limits of handling in the A2RL challenge"**, *arXiv, 2026 (Science Robotics 투고)*. [arXiv:2602.08571](https://arxiv.org/abs/2602.08571) — A2RL 2024 우승 스택 — 오프라인 OCP 레이스라인 · 4 s 샘플링 다항식 · Tube MPC · EKF
+- **[R2]** Raji, Caporale, Gatti 외, Bertogna, **"er.autopilot 1.0: The Full Autonomous Stack for Oval Racing at High Speeds"**, *Field Robotics, 2024*. [arXiv:2310.18112](https://arxiv.org/abs/2310.18112) — TII Unimore — IPOPT 최소시간 · Frenet · HPIPM MPC
+- **[R3]** Jardali, Pushp, Yu, Ali 외 (Indiana Univ.), **"From Zero to High-Speed Racing: An Autonomous Racing Stack"**, *arXiv, 2025*. [arXiv:2512.06892](https://arxiv.org/abs/2512.06892) — PP → 선형 MPC → MPPI
+- **[R4]** Baumann, Ghignone, Kühne 외, Magno, **"ForzaETH Race Stack—Scaled Autonomous Head-to-Head Racing on Fully Commercial Off-the-Shelf Hardware"**, *Journal of Field Robotics, 2024*. [arXiv:2403.11784](https://arxiv.org/abs/2403.11784) — 최소곡률 QP · Frenet 추월 · F1TENTH 우승
+- **[R5]** Evans, Trumpp, Caccamo 외, **"Unifying F1TENTH Autonomous Racing: Survey, Methods and Benchmarks"**, *arXiv, 2024*. [arXiv:2402.18558](https://arxiv.org/abs/2402.18558) — 최적화 + 추종이 가장 빠르다는 벤치마크 결론
+- **[R6]** Ghignone, Baumann, Hu 외, **"RLPP: A Residual Method for Zero-Shot Real-World Autonomous Racing on Scaled Platforms"**, *IEEE ICRA, 2025*. [arXiv:2501.17311](https://arxiv.org/abs/2501.17311) — Pure Pursuit 위 잔차 RL
+- **[R7]** Wurman, Barrett, Kawamoto 외, Kitano, **"Outracing champion Gran Turismo drivers with deep reinforcement learning"**, *Nature 602:223–228, 2022*. [Nature](https://www.nature.com/articles/s41586-021-04357-7) — GT Sophy — GT7 상용 배포(2023)
+- **[R8]** Li, Zhao, Piccinini 외, **"SGTP: Sampling-based Game-Theoretic Planning for Real-Time Multi-Vehicle Autonomous Racing"**, *arXiv, 2026*. [arXiv:2607.25388](https://arxiv.org/abs/2607.25388) — GPU 샘플링 게임이론 계획 — 시뮬레이션만
+- **[R9]** Shan, Lou, Zhou 외 (NTU · K2), **"Toward the Cognitive--Physical Limits of Embodied Intelligence through a World-Model-Centric Autonomous Racing Agent"**, *arXiv, 2026*. [arXiv:2608.10618](https://arxiv.org/abs/2608.10618) — 학습 결정 정책 + CiLQR MPC, 실차 256 km/h
+- **[R10]** Jung, Finazzi, Seong 외, Shim (KAIST), **"An Autonomous System for Head-to-Head Race: Design, Implementation and Analysis; Team KAIST at the Indy Autonomous Challenge"**, *Field Robotics, 2024 (arXiv 2023)*. [arXiv:2303.09463](https://arxiv.org/abs/2303.09463) — 결정 · minimum-jerk 계획 · 타당성 검사 계층
+- **[R11]** TII, **"World First: Autonomous Racing Leaps Forward as Abu Dhabi A2RL Season 2 Showcases Record Speed"**, *TII 보도자료, 2025-11*. [링크](https://www.tii.ae/news/world-first-autonomous-racing-leaps-forward-abu-dhabi-a2rl-season-2-showcases-record-speed) — 6대 동시 결승
+- **[R12]** Betz, Zheng, Liniger 외, **"Autonomous Vehicles on the Edge: A Survey on Autonomous Vehicle Racing"**, *IEEE Open Journal of ITS, 2022*. [arXiv:2202.07008](https://arxiv.org/abs/2202.07008) — 자율 레이싱 서베이
+
+### 모바일 로봇 ([8.15](#815-다른-로봇-분야--레이싱카--모바일--사족--휴머노이드))
+
+- **[N1]** Nav2 maintainers, **"nav2_bringup/params/nav2_params.yaml"**, *GitHub main 브랜치, 2026-09 열람*. [GitHub](https://github.com/ros-navigation/navigation2/blob/main/nav2_bringup/params/nav2_params.yaml) — 기본 FollowPath = MPPIController, 전역 = NavFn (Humble은 DWB)
+- **[N2]** Macenski, Booker, Wallace, Fischer, **"Cost-Aware Kinematically Feasible Planning for Mobile and Surface Robotics"**, *IEEE Robotics and Automation Practice 1, 2026*. [arXiv:2401.13078](https://arxiv.org/abs/2401.13078) — Smac 계획기
+- **[N3]** Xiao, Xu, Datar, Warnell, Stone 외, **"Autonomous Ground Navigation in Highly Constrained Spaces: Lessons learned from The 3rd BARN Challenge at ICRA 2024"**, *IEEE Robotics & Automation Magazine, 2024*. [arXiv:2407.01862](https://arxiv.org/abs/2407.01862) — 첫 종단간 모방학습 우승, 상위 팀 모두 상태기계 하이브리드
+- **[N4]** Cai, Peng, Yang 외, Pang, **"NavDP: Learning Sim-to-Real Navigation Diffusion Policy with Privileged Information Guidance"**, *IEEE ICRA, 2026*. [arXiv:2505.08712](https://arxiv.org/abs/2505.08712) — 확산 궤적 생성 + critic 선택
+- **[N5]** Sridhar, Shah, Glossop, Levine, **"NoMaD: Goal Masked Diffusion Policies for Navigation and Exploration"**, *IEEE ICRA, 2024*. [arXiv:2310.07896](https://arxiv.org/abs/2310.07896)
+- **[N6]** Cheng, Ji, Yang 외, Wang, **"NaVILA: Legged Robot Vision-Language-Action Model for Navigation"**, *RSS, 2025*. [arXiv:2412.04453](https://arxiv.org/abs/2412.04453) — VLA 중간 명령 + RL 보행 실행
+- **[N7]** Jiang, Wang, Veerapaneni, Duhan, Sartoretti, Li, **"Deploying Ten Thousand Robots: Scalable Imitation Learning for Lifelong Multi-Agent Path Finding"**, *IEEE ICRA, 2025*. [arXiv:2410.21415](https://arxiv.org/abs/2410.21415) — 학습 + 충돌 해소 탐색 하이브리드
+- **[N8]** Jiang 외, **"Scaling Lifelong Multi-Agent Path Finding to More Realistic Settings: Research Challenges and Opportunities"**, *SoCS, 2024*. [arXiv:2404.16162](https://arxiv.org/abs/2404.16162) — League of Robot Runners 조건 — 최대 1만 대, 스텝당 1초
+- **[N9]** League of Robot Runners 주최측, **"MAPF-Competition Start-Kit"**, *GitHub v3.1.0, 2026-04*. [GitHub](https://github.com/MAPF-Competition/Start-Kit) — 2026 실행 트랙 — 실행 지연 · 풋프린트
+- **[N10]** Agaskar, Siva 외, Pecora, Durham (Amazon Robotics), **"DeepFleet: Multi-Agent Foundation Models for Mobile Robots"**, *arXiv, 2025*. [arXiv:2508.08574](https://arxiv.org/abs/2508.08574) — 10% 개선은 회사 주장, 논문은 오프라인 평가
+- **[N11]** DARPA, **"RACER's finish line"**, *DARPA 뉴스, 2026-01-14*. [링크](https://www.darpa.mil/news/2026/racer-finish-line) — 스택을 '알고리즘 · 데이터셋 · 신경망 모델'로만 기술
+- **[N12]** Nav2 maintainers, **"Model Predictive Path Integral Controller (nav2_mppi_controller)"**, *GitHub, 2023–2026*. [GitHub](https://github.com/ros-navigation/navigation2/tree/main/nav2_mppi_controller) — critic 기반 롤아웃 평가
+- **[N13]** Xiao 외 (GMU), **"ICRA 2025 BARN Challenge"**, *대회 페이지, 2025*. [링크](https://people.cs.gmu.edu/~xiao/Research/BARN_Challenge/BARN_Challenge25.html)
+- **[N14]** Hirose, Glossop, Shah, Levine, **"OmniVLA: An Omni-Modal Vision-Language-Action Model for Robot Navigation"**, *IEEE ICRA, 2026*. [arXiv:2509.19480](https://arxiv.org/abs/2509.19480) — 10개 플랫폼 9,500시간
+- **[N15]** Bar, Zhou, Tran, Darrell, LeCun, **"Navigation World Models"**, *CVPR, 2025*. [arXiv:2412.03572](https://arxiv.org/abs/2412.03572)
+
+### 도로 자율주행 ([8.15](#815-다른-로봇-분야--레이싱카--모바일--사족--휴머노이드))
+
+- **[A1]** Dauner, Hallgarten, Geiger, Chitta, **"Parting with Misconceptions about Learning-based Vehicle Motion Planning"**, *CoRL, 2023*. [arXiv:2306.07962](https://arxiv.org/abs/2306.07962) — nuPlan 2023 우승 규칙 기반 PDM-Closed
+- **[A2]** Li 외 (NVIDIA), **"Generalized Trajectory Scoring for End-to-end Multimodal Planning"**, *arXiv, 2025*. [arXiv:2506.06664](https://arxiv.org/abs/2506.06664) — GTRS — CVPR 2025 NAVSIM v2 우승
+- **[A3]** Liao, Chen 외, **"DiffusionDrive: Truncated Diffusion Model for End-to-End Autonomous Driving"**, *CVPR, 2025*. [arXiv:2411.15139](https://arxiv.org/abs/2411.15139)
+- **[A4]** Rowe, de Schaetzen, Girgis, Pal, Paull, **"Poutine: Vision-Language-Trajectory Pre-Training and Reinforcement Learning Post-Training Enable Robust End-to-End Autonomous Driving"**, *arXiv, 2025*. [arXiv:2506.11234](https://arxiv.org/abs/2506.11234) — 2025 Waymo 종단간 챌린지 1위
+- **[A5]** Jaeger, Dauner 외, **"CaRL: Learning Scalable Planning Policies with Simple Rewards"**, *CoRL, 2025 (PMLR 305)*. [링크](https://proceedings.mlr.press/v305/jaeger25a.html)
+- **[A6]** Waymo, **"Demonstrably Safe AI For Autonomous Driving"**, *Waymo Blog, 2025-12*. [링크](https://waymo.com/blog/2025/12/demonstrably-safe-ai-for-autonomous-driving/) — 교사 파운데이션 모델 → 증류 → 온보드 검증층 (회사 발표)
+- **[A7]** Waymo, **"10 AI Lessons from Driving 200+ Million Fully Autonomous Miles"**, *Waymo Blog, 2026-08*. [링크](https://waymo.com/blog/2026/08/10ailessons) — 검증층이 물리 hard 제약 · 교통법규 점검 (회사 발표)
+- **[A8]** NVIDIA, **"NVIDIA DRIVE AV Raises the Bar for Vehicle Safety as Mercedes-Benz CLA Earns Top Euro NCAP Award"**, *NVIDIA Blog, 2026-01*. [링크](https://blogs.nvidia.com/blog/drive-av-mercedes-benz-cla/) — 종단간 + 병렬 고전 안전 스택
+- **[A9]** Autoware Foundation · TIER IV, **"autoware_diffusion_planner"**, *GitHub, 2025–2026*. [GitHub](https://github.com/autowarefoundation/autoware_universe/tree/main/planning/autoware_diffusion_planner)
+- **[A10]** Wei, Yu, Lai, Pang, Li, **"When Shared Rollouts Fail in Defensive Driving Evaluation: A NAVSIM Score Basis Audit"**, *arXiv, 2026*. [arXiv:2608.04896](https://arxiv.org/abs/2608.04896)
+- **[A11]** Waymo, **"The Waymo World Model: A New Frontier For Autonomous Driving Simulation"**, *Waymo Blog, 2026-02*. [링크](https://waymo.com/blog/2026/02/the-waymo-world-model-a-new-frontier-for-autonomous-driving-simulation/)
+- **[A12]** Tian, Gu 외, **"DriveVLM: The Convergence of Autonomous Driving and Large Vision-Language Models"**, *CoRL, 2024*. [arXiv:2402.12289](https://arxiv.org/abs/2402.12289) — 느린 VLM + 기존 플래너
+- **[A13]** XPENG, **"XPENG Shares Achievements in Physical AI Emergence: Unveils XPENG VLA 2.0"**, *XPENG 뉴스, 2025-11*. [링크](https://www.xpeng.com/news/019a56f54fe99a2a0a8d8a0282e402b7)
+- **[A14]** Baniodeh, Goel 외 (Waymo), **"Scaling Laws of Motion Forecasting and Planning — Technical Report"**, *arXiv, 2025*. [arXiv:2506.08228](https://arxiv.org/abs/2506.08228)
+
+### 사족보행 ([8.15](#815-다른-로봇-분야--레이싱카--모바일--사족--휴머노이드))
+
+- **[Q1]** Hwangbo, Lee, Dosovitskiy, Bellicoso, Tsounis, Koltun, Hutter, **"Learning agile and dynamic motor skills for legged robots"**, *Science Robotics 4(26), 2019*. [arXiv:1901.08652](https://arxiv.org/abs/1901.08652) — actuator network — RL sim-to-real의 전환점
+- **[Q2]** Rudin, Hoeller, Reist, Hutter, **"Learning to Walk in Minutes Using Massively Parallel Deep Reinforcement Learning"**, *CoRL, 2021 (PMLR 164)*. [링크](https://proceedings.mlr.press/v164/rudin22a.html) — legged_gym
+- **[Q3]** ANYbotics, **"Superior Robot Mobility: Where AI Meets the Real World"**, *ANYbotics 뉴스, 2023-10*. [링크](https://www.anybotics.com/news/superior-robot-mobility-where-ai-meets-the-real-world/) — RL 보행을 전 운용 로봇에 (자사 발표)
+- **[Q4]** Boston Dynamics, **"Starting on the Right Foot with Reinforcement Learning"**, *Boston Dynamics Blog, 2024*. [링크](https://bostondynamics.com/blog/starting-on-the-right-foot-with-reinforcement-learning/) — 병렬 MPC 지평 평가를 RL이 대신, MPC 유지
+- **[Q5]** Jenelten, He, Farshidian, Hutter, **"DTC: Deep Tracking Control"**, *Science Robotics, 2024*. [arXiv:2309.15462](https://arxiv.org/abs/2309.15462) — TO 발디딤 참조 + RL 추종
+- **[Q6]** Kim, Oh, Park 외, Hwangbo (KAIST), **"High-speed control and navigation for quadrupedal robots on complex and discrete terrain"**, *Science Robotics 10(102), 2025*. [arXiv:2506.02835](https://arxiv.org/abs/2506.02835) — 샘플링 발디딤 + RL 추종
+- **[Q7]** Xue, Pan, Yi, Qu, Shi, **"Full-Order Sampling-Based MPC for Torque-Level Locomotion Control via Diffusion-Style Annealing"**, *IEEE ICRA, 2025*. [arXiv:2409.15610](https://arxiv.org/abs/2409.15610) — DIAL-MPC — Robot Manipulation and Locomotion 부문 최종후보
+- **[Q8]** Grandia, Jenelten, Yang, Farshidian, Hutter, **"Perceptive Locomotion through Nonlinear Model Predictive Control"**, *IEEE T-RO, 2023*. [arXiv:2208.08373](https://arxiv.org/abs/2208.08373) — OCS2 기반 지각 NMPC
+- **[Q9]** Lee, Bjelonic, Reske, Wellhausen, Miki, Hutter, **"Learning robust autonomous navigation and locomotion for wheeled-legged robots"**, *Science Robotics, 2024*. [arXiv:2405.01792](https://arxiv.org/abs/2405.01792) — 계층형 RL 내비
+- **[Q10]** Boston Dynamics, **"Put It in Context with Visual Foundation Models"**, *Boston Dynamics Blog, 2024*. [링크](https://bostondynamics.com/blog/put-it-in-context-with-visual-foundation-models/) — Spot의 시각 파운데이션 모델 기반 위험물 회피
+
+### 휴머노이드 ([8.15](#815-다른-로봇-분야--레이싱카--모바일--사족--휴머노이드))
+
+- **[H1]** Radosavovic, Xiao, Zhang, Darrell, Malik, Sreenath, **"Real-world humanoid locomotion with reinforcement learning"**, *Science Robotics 9(89), 2024*. [arXiv:2303.03381](https://arxiv.org/abs/2303.03381)
+- **[H2]** Figure AI, **"Introducing Helix 02: Full-Body Autonomy"**, *Figure 블로그, 2026-01*. [링크](https://www.figure.ai/news/helix-02) — System 0 — 학습형 전신 제어기 (회사 발표)
+- **[H3]** Agility Robotics, **"Training a Whole-Body Control Foundation Model"**, *Agility 블로그, 2025-08*. [링크](https://www.agilityrobotics.com/content/training-a-whole-body-control-foundation-model) — 작은 LSTM이 IK · ID 기반 제어 대체
+- **[H4]** Boston Dynamics · Toyota Research Institute, **"Large Behavior Models and Atlas Find New Footing"**, *Boston Dynamics Blog, 2025-08*. [링크](https://bostondynamics.com/blog/large-behavior-models-atlas-find-new-footing/) — 450M DiT, 30 Hz, MPC 기반 인터페이스
+- **[H5]** Luo, Yuan, Wang 외, Zhu (NVIDIA), **"SONIC: Supersizing Motion Tracking for Natural Humanoid Whole-Body Control"**, *Science Robotics, 2026*. [arXiv:2511.07820](https://arxiv.org/abs/2511.07820)
+- **[H6]** He, Gao, Xiao 외, Shi, **"ASAP: Aligning Simulation and Real-World Physics for Learning Agile Humanoid Whole-Body Skills"**, *RSS, 2025*. [arXiv:2502.01143](https://arxiv.org/abs/2502.01143)
+- **[H7]** Ghansah, Esteban, Ames, **"Hierarchical Reduced-Order Model Predictive Control for Robust Locomotion on Humanoid Robots"**, *IEEE-RAS Humanoids, 2025*. [arXiv:2509.04722](https://arxiv.org/abs/2509.04722)
+- **[H8]** Li, Cheng, Huang, Yang, Qiu, Wang, **"AMO: Adaptive Motion Optimization for Hyper-Dexterous Humanoid Whole-Body Control"**, *RSS, 2025*. [arXiv:2505.03738](https://arxiv.org/abs/2505.03738) — TO 생성 데이터 + sim-to-real RL
+- **[H9]** Li, Wu, Esteban, Yang, Drgoňa, Ames, **"Accelerating and Scaling MPC-Guided Reinforcement Learning for Humanoid Locomotion and Manipulation"**, *arXiv, 2026*. [arXiv:2606.05687](https://arxiv.org/abs/2606.05687)
+- **[H10]** Zhu, Zhuang, Zhao, Lee, Zhao, **"Hiking in the Wild: A Scalable Perceptive Parkour Framework for Humanoids"**, *arXiv, 2026*. [arXiv:2601.07718](https://arxiv.org/abs/2601.07718)
+- **[H11]** Figure AI, **"Natural Humanoid Walk Using Reinforcement Learning"**, *Figure 블로그, 2025-03*. [링크](https://www.figure.ai/news/reinforcement-learning-walking)
+- **[H12]** NVIDIA, **"Building Generalist Humanoid Capabilities with NVIDIA Isaac GR00T N1.6 Using a Sim-to-Real Workflow"**, *NVIDIA Technical Blog, 2026-01*. [링크](https://developer.nvidia.com/blog/building-generalist-humanoid-capabilities-with-nvidia-isaac-gr00t-n1-6-using-a-sim-to-real-workflow/) — 내비 헤드가 속도 명령으로 RL 전신 제어기 호출
+- **[H13]** Wikipedia, **"Beijing E-Town Half-Marathon"**, *2026-09 열람*. [링크](https://en.wikipedia.org/wiki/Beijing_E-Town_Half-Marathon)
+- **[H14]** Wikipedia, **"World Humanoid Robot Games"**, *2026-09 열람*. [링크](https://en.wikipedia.org/wiki/World_Humanoid_Robot_Games)
+
+### 분야 횡단 ([8.15](#815-다른-로봇-분야--레이싱카--모바일--사족--휴머노이드))
+
+- **[C1]** Mittal, Roth, Tigue, Richard 외 (NVIDIA · ETH), **"Isaac Lab: A GPU-Accelerated Simulation Framework for Multi-Modal Robot Learning"**, *arXiv, 2025*. [arXiv:2511.04831](https://arxiv.org/abs/2511.04831)
+- **[C2]** Zakka, Tabanpour, Liao 외, **"MuJoCo Playground"**, *RSS, 2025*. [arXiv:2502.08844](https://arxiv.org/abs/2502.08844)
+- **[C3]** Song, Romero, Müller, Koltun, Scaramuzza, **"Reaching the Limit in Autonomous Racing: Optimal Control versus Reinforcement Learning"**, *Science Robotics, 2023*. [arXiv:2310.10943](https://arxiv.org/abs/2310.10943)
+- **[C4]** Chi, Feng, Du, Xu, Cousineau, Burchfiel, Song, **"Diffusion Policy: Visuomotor Policy Learning via Action Diffusion"**, *RSS, 2023*. [arXiv:2303.04137](https://arxiv.org/abs/2303.04137)
+- **[C5]** Black, Brown, Driess 외 (Physical Intelligence), **"π0: A Vision-Language-Action Flow Model for General Robot Control"**, *RSS, 2025*. [arXiv:2410.24164](https://arxiv.org/abs/2410.24164)
+- **[C6]** Gemini Robotics Team 외, **"Evaluating Gemini Robotics Policies in a Veo World Simulator"**, *arXiv, 2025*. [arXiv:2512.10675](https://arxiv.org/abs/2512.10675)
+- **[C7]** NVIDIA, **"Cosmos World Foundation Model Platform for Physical AI"**, *arXiv, 2025*. [arXiv:2501.03575](https://arxiv.org/abs/2501.03575)
+- **[C8]** NVIDIA, **"Newton Adds Contact-Rich Manipulation and Locomotion Capabilities for Industrial Robotics"**, *NVIDIA Technical Blog, 2026-03*. [링크](https://developer.nvidia.com/blog/newton-adds-contact-rich-manipulation-and-locomotion-capabilities-for-industrial-robotics/) — Newton 1.0 — 주 백엔드 MuJoCo Warp는 아직 미분 미지원
+- **[C9]** Hsu, Hu, Fisac, **"The Safety Filter: A Unified View of Safety-Critical Control in Autonomous Systems"**, *Annual Review of Control, Robotics, and Autonomous Systems (게재 승인)*. [arXiv:2309.05837](https://arxiv.org/abs/2309.05837)
+- **[C10]** Pan, Yi, Shi, Qu, **"Model-based Diffusion for Trajectory Optimization"**, *NeurIPS, 2024*. [arXiv:2407.01573](https://arxiv.org/abs/2407.01573)
+- **[C11]** Ai, Dai, Bohlinger 외, Su, **"Towards Embodiment Scaling Laws in Robot Locomotion"**, *CoRL, 2025*. [arXiv:2505.05753](https://arxiv.org/abs/2505.05753)
+- **[C12]** Hafner, Pasukonis, Ba, Lillicrap, **"Mastering diverse control tasks through world models"**, *Nature, 2025*. [Nature](https://www.nature.com/articles/s41586-025-08744-2) — DreamerV3
+- **[C13]** Unitree Robotics, **"unitree_rl_mjlab"**, *GitHub, 2026*. [GitHub](https://github.com/unitreerobotics/unitree_rl_mjlab) — MuJoCo Warp 기반 공식 RL 저장소
+
+### 제도 · 운용 · 산업 현장 ([8.15](#815-다른-로봇-분야--레이싱카--모바일--사족--휴머노이드))
+
+- **[P1]** European Commission, **"Machinery — Regulation (EU) 2023/1230"**, *EC 공식 페이지, 2023–2026*. [링크](https://single-market-economy.ec.europa.eu/sectors/mechanical-engineering/machinery_en) — 2027-01-20 적용 · AI 기반 안전 기능 기계
+- **[P2]** Future of Life Institute (AI Act Explorer), **"Article 6: Classification Rules for High-Risk AI Systems"**, *2026 갱신 — 비공식 편집본*. [링크](https://artificialintelligenceact.eu/article/6/) — 최적화 목적 AI는 안전 부품에서 제외
+- **[P3]** Aurora Innovation, **"Aurora Driverless Safety Report 2025 (with VSSA Addendum July 2026)"**, *Safety report, 2025/2026*. [PDF](https://downloads.ctfassets.net/9i0s3p5vkth9/Gx5t3M6aWWUk8yEsXIZ8N/bf9767dfeb33360114438df17739d8be/Aurora_Driverless_Safety_Report_2025_with_Addendum.pdf) — UL 4600 safety case
+- **[P4]** Ding, Cui, Wang, Wen, **"Toward Certified Functional Safety for Industrial Humanoid Robots: The Fail-Passive Gap and a Feasibility Study"**, *arXiv, 2026*. [arXiv:2608.02809](https://arxiv.org/abs/2608.02809)
+- **[P5]** NVIDIA, **"NVIDIA Announces Halos for Robotics, the Industry's First Full-Stack Safety System for Physical AI"**, *NVIDIA Newsroom, 2026-06*. [링크](https://nvidianews.nvidia.com/news/nvidia-announces-halos-for-robotics-the-industrys-first-full-stack-safety-system-for-physical-ai)
+- **[P6]** Waymo, **"Fleet response: Lending a helpful hand to Waymo's autonomously driven vehicles"**, *Waymo Blog, 2024-05-21*. [링크](https://waymo.com/blog/2024/05/fleet-response/)
+- **[P7]** R. McNamara (Waymo), **"Advice, not control: the role of Remote Assistance in Waymo's operations"**, *Waymo Blog, 2026-02-17*. [링크](https://waymo.com/blog/shorts/advice-not-control-the-role-of-remote-assistance/) — 동시 근무 약 70명 · 차량 3,000대 · 편도 지연 중앙값 약 150 ms
+- **[P8]** NTSB, **"Automated Driving System-Equipped Vehicle Passed School Bus Loading Student Passengers (HWY26FH007)"**, *NTSB 조사 페이지, 2026*. [링크](https://www.ntsb.gov/investigations/Pages/HWY26FH007.aspx) — 조사 진행 중 — 원인 미판정
+- **[P9]** S. O'Kane (TechCrunch), **"Robotaxi companies refuse to say how often their AVs need remote help"**, *TechCrunch, 2026-03-31*. [링크](https://techcrunch.com/2026/03/31/robotaxi-companies-refuse-to-say-how-often-their-avs-need-remote-help/) — Markey 상원의원 조사 요약 *(헤드라인)*
+- **[P10]** NASA JPL, **"NASA's Perseverance Rover Completes First AI-Planned Drive on Mars"**, *JPL News, 2026-01-30*. [링크](https://www.jpl.nasa.gov/news/nasas-perseverance-rover-completes-first-ai-planned-drive-on-mars/)
+- **[P11]** Anthropic, **"Claude AI Powers NASA's First AI-Planned Mars Rover Drive"**, *Anthropic, 2026*. [링크](https://www.anthropic.com/features/claude-on-mars) — 회사 자기 보고
+- **[P12]** NASA JPL, **"NASA's Perseverance Mars Rover Ready to Roll for Miles in Years Ahead"**, *JPL News, 2025-12-17*. [링크](https://www.jpl.nasa.gov/news/nasas-perseverance-mars-rover-ready-to-roll-for-miles-in-years-ahead/) — 주행의 90% 이상 자율, 최장 411.7 m
+- **[P13]** Toupet, Ono 외 (NASA JPL), **"Enhanced Autonomous Navigation on the Perseverance Mars Rover"**, *IEEE Transactions on Field Robotics, 2025*. [IEEE](https://ieeexplore.ieee.org/document/11265757) — ENav — 후보 약 1,700개 순위화 + 상위만 보수적 충돌 검사
+- **[P14]** Komatsu, **"Komatsu becomes first OEM to commission 1,000 ultra-class autonomous haul trucks"**, *Komatsu 뉴스룸, 2026-04-22*. [링크](https://www.komatsu.jp/en/newsroom/2026/20260422) — 누적 커미셔닝 대수
+- **[P15]** EACON (易控智驾), **"无人矿卡规模接近翻倍，澳洲与金属矿突破打开新空间｜易控智驾发布 2026 年中期业绩"**, *EACON 뉴스, 2026-08-26*. [링크](https://www.eacon.com/news/827.html) — 3,500대 이상 — 자사 발표
+- **[P16]** Aurora Innovation, **"Aurora Triples Driverless Network to 10 Routes and Prepares to Expand Across U.S. Sun Belt"**, *보도자료, 2026-02-11*. [링크](https://ir.aurora.tech/news-events/press-releases/detail/132)
+- **[P17]** John Deere, **"Autonomous Tractor"**, *제품 페이지, 2026-09 열람*. [링크](https://www.deere.com/en-us/products-solutions/tractors/autonomous-tractor/) — 카메라 16대 + 신경망 약 100 ms
+- **[P18]** California DMV, **"New Autonomous Vehicle Regulations Strengthen Oversight and Enforcement, Authorize Trucks and Transit"**, *보도자료, 2026-04-28*. [링크](https://www.dmv.ca.gov/portal/news-and-media/new-autonomous-vehicle-regulations-strengthen-oversight-and-enforcement-authorize-trucks-and-transit/)
+
+### 한국 ([8.15](#815-다른-로봇-분야--레이싱카--모바일--사족--휴머노이드))
+
+- **[K1]** Choi, Ji, Park, Kim, Mun, Lee, Hwangbo, **"Learning quadrupedal locomotion on deformable terrain"**, *Science Robotics 8(74), 2023*. [doi](https://www.science.org/doi/10.1126/scirobotics.ade2256)
+- **[K2]** (저자 확인 안 됨) — KAIST 박해원 연구실, **"Agile and versatile climbing on ferromagnetic surfaces with a quadrupedal robot"**, *Science Robotics, 2022*. [doi](https://www.science.org/doi/10.1126/scirobotics.add1017) — MARVEL — 자석 발 + NMPC
+- **[K3]** Kim, Kang, Kim, Hong, Park, **"Contact-Implicit Model Predictive Control: Controlling Diverse Quadruped Motions Without Pre-Planned Contact Modes or Trajectories"**, *IJRR 44(3):486–510, 2025*. [arXiv:2312.08961](https://arxiv.org/abs/2312.08961)
+- **[K4]** Kang, Park, Song, Kim, Hong, Park 외, **"Agile perceptive multi-skill locomotion for quadrupedal robots in the wild"**, *Science Robotics, 2026*. [arXiv:2607.13579](https://arxiv.org/abs/2607.13579) — APT-RL — SRBD 궤적 최적화 18만 개로 사전학습 후 RL
+- **[K5]** Nahrendra, Yu, Myung, **"DreamWaQ: Learning Robust Quadrupedal Locomotion With Implicit Terrain Imagination via Deep Reinforcement Learning"**, *IEEE ICRA, 2023*. [arXiv:2301.10602](https://arxiv.org/abs/2301.10602)
+- **[K6]** Nahrendra, Yu, Oh 외, Myung, **"DreamWaQ++: Obstacle-Aware Quadrupedal Locomotion With Resilient Multi-Modal Reinforcement Learning"**, *IEEE T-RO, 2026*. [arXiv:2409.19709](https://arxiv.org/abs/2409.19709)
+- **[K7]** KAIST, **"KAIST's RAIBO2 becomes the World's First Robo-dog to Successfully Complete a Full-course Marathon"**, *KAIST 보도자료, 2024-11*. [링크](https://news.kaist.ac.kr/newsen/html/news/?mode=V&mng_no=41590) — 42.195 km 4:19:52 · RaiSim RL · 자율 주행은 후속 과제
+- **[K8]** Kim, Berseth, Schwartz, Park, **"Torque-Based Deep Reinforcement Learning for Task-and-Robot Agnostic Learning on Bipedal Robots Using Sim-to-Real Transfer"**, *IEEE RA-L 8(10), 2023*. [링크](https://researchwith.njit.edu/en/publications/torque-based-deep-reinforcement-learning-for-task-and-robot-agnos)
+- **[K9]** 산업통상자원부, **"K-휴머노이드 연합 출범"**, *보도자료, 2025-04-10*. [링크](https://www.motir.go.kr/kor/article/ATCL3f49a5a8c/170404/view?mno=&pageIndex=1&rowPageC=0&displayAuthor=&searchCategory=0&schClear=on&startDtD=&endDtD=&searchCondition=1&searchKeyword=%ED%9C%B4%EB%A8%B8%EB%85%B8%EC%9D%B4%EB%93%9C)
+- **[K10]** 과학기술정보통신부 (정책브리핑), **"민관 합작 'K-AI 휴머노이드' 개발 착수…2030년 글로벌 주도권 장악"**, *정책브리핑, 2026-05-18*. [링크](https://www.korea.kr/news/policyNewsView.do?newsId=148964548) — 504억 원 · 2026–2030 · KIST 주관
+- **[K11]** 산업통상자원부 · 경찰청 (정책브리핑), **"'실외이동로봇' 보도 통행 가능해진다…배달·순찰 로봇 허용"**, *정책브리핑, 2023-11-16*. [링크](https://www.korea.kr/news/policyNewsView.do?newsId=148922726)
+- **[K12]** 한국로봇산업진흥원 (KIRIA), **"실외이동로봇 운행안전인증 — 인증제품현황"**, *KIRIA 포털, 2026-09-11 열람*. [링크](https://www.kiria.org/portal/cert/portalCertEstiStats.do) — 22개 모델 · 10개 기업
+- **[K13]** 관계부처 합동, **"AI 분야 규제합리화 로드맵"**, *2025-11-27 (PDF)*. [PDF](https://www.kmcc.go.kr/download.do?fileSeq=62128) — 평가항목 16 → 8개 · 심사기간 60 → 30일
+- **[K14]** ZDNet Korea, **"실외 배달로봇 '시속 15km 이하로'...16가지 안전기준 심사"**, *ZDNet Korea, 2023-07-28*. [링크](https://zdnet.co.kr/view/?no=20230728173101) — 개정 전 세부 기준 *(헤드라인)*
+- **[K15]** Damanik, Jung, Deresa 외, **"LiCS: Navigation using Learned-imitation on Cluttered Space"**, *IEEE RA-L, 2024*. [arXiv:2406.14947](https://arxiv.org/abs/2406.14947) — BARN 2024 우승
+- **[K16]** 뉴스토마토, **"배민의 자율주행 로봇 '딜리', 이렇게 달린다"**, *뉴스토마토, 2024-10 (우아콘2024 발표 보도)*. [링크](https://www.newstomato.com/ReadNews.aspx?no=1243901) *(헤드라인)*
+- **[K17]** ZDNet Korea, **"뉴빌리티, 자율주행 로봇 305대 운영"**, *ZDNet Korea, 2025-12-23*. [링크](https://zdnet.co.kr/view/?no=20251223101843) *(헤드라인)*
+- **[K18]** ZDNet Korea, **"로보티즈, 하반기 5세대 자율주행로봇 출격...라이다 첫 탑재"**, *ZDNet Korea, 2026-05-29*. [링크](https://zdnet.co.kr/view/?no=20260529134003) *(헤드라인)*
+- **[K19]** 현대자동차그룹, **"현대자동차∙기아 자율주행 배송로봇 교통신호 정보 연계해 횡단보도 횡단 성공"**, *보도자료, 2024-08-09*. [링크](https://www.hyundaimotorgroup.com/ko/news/CONT0000000000158712)
+- **[K20]** 이데일리, **"현대차 로봇, 보도 달린다…자율이송로봇 '모베드 프로' 실외 인증 취득"**, *이데일리, 2026-06-25*. [링크](https://edaily.co.kr/News/Read?mediaCodeNo=257&newsId=03978646645485328) — 횡단보도 통행 불가 · 가시거리 내 운행 조건 *(헤드라인)*
+- **[K21]** Serve Robotics, **"Serve Robotics Builds 2,000 Autonomous Delivery Robots, Creating Largest Sidewalk Delivery Fleet in the U.S."**, *GlobeNewswire, 2025-12-12*. [링크](https://www.globenewswire.com/news-release/2025/12/12/3204583/0/en/Serve-Robotics-Builds-2-000-Autonomous-Delivery-Robots-Creating-Largest-Sidewalk-Delivery-Fleet-in-the-U-S.html)
+- **[K22]** Boston Dynamics, **"Boston Dynamics Unveils New Atlas Robot to Revolutionize Industry"**, *Boston Dynamics, 2026-01-05*. [링크](https://bostondynamics.com/blog/boston-dynamics-unveils-new-atlas-robot-to-revolutionize-industry/)
+- **[K23]** 레인보우로보틱스, **"RBQ Series (사족보행 로봇) 제품 페이지"**, *2026-09 열람*. [링크](https://rainbow-robotics.com/%EC%A0%9C%ED%92%88%EC%86%94%EB%A3%A8%EC%85%98/%EC%82%AC%EC%A1%B1%EB%B3%B4%ED%96%89-%EB%A1%9C%EB%B4%87/rbq-series) — 동역학 기반 보행 + AI 보행 결합·전환
+- **[K24]** ZDNet Korea, **"'5세대 개미' 공개 앞둔 로보티즈, 실외로봇 판 키운다"**, *ZDNet Korea, 2025-12-18*. [링크](https://zdnet.co.kr/view/?no=20251218101741) — 약 200대 운영 · 2026년까지 약 2,000대 목표 *(헤드라인)*
+- **[K25]** 헬로티, **"[봇규가 간다] 판교 보도 누비는 AMR '뉴비'가 쏘아 올린 공...도심 데이터 자산으로 '자율주행 선순환' 만든다"**, *헬로티, 2026-03-21*. [링크](https://www.hellot.net/news/article.html?no=111539) — 카메라 5대 · 라이다 없음 *(헤드라인)*
+- **[K26]** NAVER, **"1784 THE TESTBED"**, *공식 페이지*. [링크](https://1784.navercorp.com/)
+> **인용 정확도 (8.15)** — [R]·[N]·[A]·[Q]·[H]·[C]·[P]·[K]는 논문 초록, 학회·저널 페이지, 기업·기관 공식 페이지에서
+> 서지와 요지를 확인했습니다. 저자를 모두 확인하지 못한 항목은 "외"로, [K2]는 저자를 확정하지 못했습니다.
+> *(헤드라인)*은 뉴스 보도로만 확인한 항목이고, 기업 수치는 회사 발표이며 독립 검증이 아닙니다.
