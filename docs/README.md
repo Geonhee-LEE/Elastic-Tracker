@@ -20,9 +20,14 @@ ZJU FAST Lab의 **Elastic Tracker**(ICRA 2022) ROS1 워크스페이스를 코드
 
 ## HTML 버전
 
-- `docs/index.html` — 01–07을 한 페이지로 묶은 문서. **수식(MathML)**, **직접 조작하는 도해 2종**
+GitHub에서 HTML 파일을 누르면 소스 코드가 보입니다. 웹페이지로 보려면 **웹에서 보기** 링크를 누르세요
+(GitHub Pages가 이 `docs/` 폴더를 그대로 게시합니다).
+
+- `docs/index.html` — [**웹에서 보기**](https://geonhee-lee.github.io/Elastic-Tracker/) ·
+  01–07을 한 페이지로 묶은 문서. **수식(MathML)**, **직접 조작하는 도해 2종**
   (시간 파라미터화 / 가시성 페널티), **페널티 함수 차트**, 안전 회랑 생성 3단계 도해, 심각도순 이슈 목록
-- `docs/lineage.html` — 08의 HTML 버전. 계보도, 결정변수 수식 대비, "표현 × 충돌 처리" 2×2 매트릭스,
+- `docs/lineage.html` — [**웹에서 보기**](https://geonhee-lee.github.io/Elastic-Tracker/lineage.html) ·
+  08의 HTML 버전. 계보도, 결정변수 수식 대비, "표현 × 충돌 처리" 2×2 매트릭스,
   **다섯 저장소 파일 탐색기**(탭 전환 + 검증 깊이 배지), 그리고 13–14절의 **2019–2026 연구 연표**,
   **환경 × 가시성 3×3 매트릭스**, **동적 가림 비용 도해**와 제안 로드맵
 
